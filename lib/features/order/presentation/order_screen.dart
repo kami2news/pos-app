@@ -534,17 +534,19 @@ class OrderScreen extends ConsumerWidget {
             child: const Text('戻る'),
           ),
           FilledButton.icon(
-            onPressed: () {
-              // pending 登録
-              ref
+            onPressed: () async {
+              // ダイアログを先に閉じてから API 完了を待つ
+              Navigator.of(ctx).pop();
+
+              // pending 登録 → API 完了後にサーバー発行のIDが返る
+              // (await することで tempId→serverId 置換後に遷移できる)
+              final orderId = await ref
                   .read(orderListProvider.notifier)
                   .addPending(cartItems, subtotal, totalDiscount);
               ref.read(currentOrderProvider.notifier).clear();
               ref.read(manualDiscountProvider.notifier).state = 0;
 
-              // 登録した注文 ID を取得してそのまま精算画面へ
-              final orderId = ref.read(orderListProvider).last.id;
-              Navigator.of(ctx).pop();
+              if (!context.mounted) return;
               context.go('/orders/checkout/$orderId');
             },
             icon: const Icon(Icons.point_of_sale, size: 16),

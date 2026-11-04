@@ -203,8 +203,9 @@ class OrderListNotifier extends StateNotifier<List<OrderModel>> {
       };
 
   // ── 保留注文を登録（注文登録画面から利用）──
-  // 楽観的更新: 呼び出し元が await しなくても即座に state が更新される
-  Future<void> addPending(
+  // API 完了後にサーバー発行の ID を返す。
+  // 失敗時は tempId を返してローカル動作を継続する。
+  Future<String> addPending(
       List<OrderItem> items, int subtotal, int discountAmount) async {
     _seq++;
     final number = _seq.toString().padLeft(3, '0');
@@ -261,8 +262,10 @@ class OrderListNotifier extends StateNotifier<List<OrderModel>> {
           else
             o,
       ];
+      return serverId; // ← 確定したサーバーIDを返す
     } catch (_) {
       // API 失敗: ローカルの temp ID で動作継続
+      return tempId;
     }
   }
 
