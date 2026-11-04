@@ -1,0 +1,314 @@
+import 'dart:math';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'models/order_item.dart';
+import 'models/order_model.dart';
+import '../../discount/domain/models/discount_rule.dart';
+import '../../discount/domain/discount_rules_provider.dart';
+import '../../auth/domain/models/auth_state.dart';
+import '../../../core/network/api_service.dart';
+
+// ─────────────────────────────────────
+// 作成中の注文（カート）
+// ─────────────────────────────────────
+final currentOrderProvider =
+    StateNotifierProvider<CurrentOrderNotifier, List<OrderItem>>((ref) {
+  return CurrentOrderNotifier();
+});
+
+class CurrentOrderNotifier extends StateNotifier<List<OrderItem>> {
+  CurrentOrderNotifier() : super([]);
+
+  void addProduct({
+    required String productId,
+    required String productName,
+    required int unitPrice,
+  }) {
+    final exists = state.any((i) => i.productId == productId);
+    if (exists) {
+      state = [
+        for (final item in state)
+          if (item.productId == productId)
+            OrderItem(
+              productId: item.productId,
+              productName: item.productName,
+              unitPrice: item.unitPrice,
+              quantity: item.quantity + 1,
+            )
+          else
+            item,
+      ];
+    } else {
+      state = [
+        ...state,
+        OrderItem(
+            productId: productId,
+            productName: productName,
+            unitPrice: unitPrice),
+      ];
+    }
+  }
+
+  void decreaseProduct(String productId) {
+    state = state
+        .map((i) => i.productId == productId
+            ? OrderItem(
+                productId: i.productId,
+                productName: i.productName,
+                unitPrice: i.unitPrice,
+                quantity: i.quantity - 1,
+              )
+            : i)
+        .where((i) => i.quantity > 0)
+        .toList();
+  }
+
+  void clear() => state = [];
+
+  int get subtotal => state.fold(0, (s, i) => s + i.subtotal);
+}
+
+// ─────────────────────────────────────
+// 手動割引
+// ─────────────────────────────────────
+final manualDiscountProvider = StateProvider<int>((ref) => 0);
+
+// ─────────────────────────────────────
+// セット割の自動適用
+// ─────────────────────────────────────
+
+/// 適用されたルールとその割引額のペア
+class AppliedDiscount {
+  final DiscountRule rule;
+  final int amount; // 実際の割引額（円）
+  const AppliedDiscount({required this.rule, required this.amount});
+}
+
+/// セット割の自動計算結果
+class AutoDiscountResult {
+  final List<AppliedDiscount> applied;
+  final int totalDiscount;
+  const AutoDiscountResult(
+      {required this.applied, required this.totalDiscount});
+}
+
+final autoDiscountProvider = Provider<AutoDiscountResult>((ref) {
+  final cart = ref.watch(currentOrderProvider);
+  final rules = ref.watch(discountRulesProvider);
+  final subtotal = cart.fold(0, (s, i) => s + i.subtotal);
+
+  final applied = <AppliedDiscount>[];
+  int totalDiscount = 0;
+
+  for (final rule in rules.where((r) => r.isActive)) {
+    if (!_ruleApplies(rule, cart, subtotal)) continue;
+
+    final discount = _calcDiscount(rule, subtotal);
+    if (discount <= 0) continue;
+
+    applied.add(AppliedDiscount(rule: rule, amount: discount));
+    totalDiscount += discount;
+  }
+
+  // 小計を超えない
+  totalDiscount = totalDiscount.clamp(0, subtotal);
+  return AutoDiscountResult(applied: applied, totalDiscount: totalDiscount);
+});
+
+/// ルールが現在のカートに適用されるか判定
+bool _ruleApplies(DiscountRule rule, List<OrderItem> cart, int subtotal) {
+  switch (rule.conditionType) {
+    case ConditionType.productCombo:
+      if (rule.targetProductIds.length < 2) return false;
+      return rule.targetProductIds
+          .every((id) => cart.any((i) => i.productId == id));
+    case ConditionType.amountThreshold:
+      return subtotal >= rule.minAmount;
+    case ConditionType.quantityThreshold:
+      final totalItems = cart.fold(0, (s, i) => s + i.quantity);
+      return totalItems >= rule.minQuantity;
+  }
+}
+
+/// 割引額を計算
+int _calcDiscount(DiscountRule rule, int subtotal) {
+  switch (rule.discountType) {
+    case DiscountType.fixedAmount:
+      return rule.discountValue;
+    case DiscountType.percentage:
+      return (subtotal * rule.discountValue / 100).floor();
+  }
+}
+
+// ─────────────────────────────────────
+// 注文一覧
+// ─────────────────────────────────────
+final orderListProvider =
+    StateNotifierProvider<OrderListNotifier, List<OrderModel>>((ref) {
+  return OrderListNotifier(ref);
+});
+
+class OrderListNotifier extends StateNotifier<List<OrderModel>> {
+  final Ref _ref;
+  int _seq = 0;
+
+  OrderListNotifier(this._ref) : super([]);
+
+  ApiService get _api => _ref.read(apiServiceProvider);
+  String get _businessDayId =>
+      _ref.read(authStateProvider).businessDayId ?? '';
+
+  // ── 保留注文を登録（注文登録画面から利用）──
+  // 楽観的更新: 呼び出し元が await しなくても即座に state が更新される
+  Future<void> addPending(
+      List<OrderItem> items, int subtotal, int discountAmount) async {
+    _seq++;
+    final number = _seq.toString().padLeft(3, '0');
+    final total = max(0, subtotal - discountAmount);
+    final tempId = 'tmp-${DateTime.now().millisecondsSinceEpoch}';
+
+    // 1. 即座に state を更新（呼び出し元はこの時点で orderNumber を読める）
+    state = [
+      ...state,
+      OrderModel(
+        id: tempId,
+        orderNumber: number,
+        items: List.unmodifiable(items),
+        subtotal: subtotal,
+        discountAmount: discountAmount,
+        totalAmount: total,
+        orderedAt: DateTime.now(),
+        status: OrderStatus.pending,
+      ),
+    ];
+
+    // 2. API に注文を送信してサーバー ID を取得
+    try {
+      final data = await _api.createOrder(
+        businessDayId: _businessDayId,
+        items: items
+            .map((i) => {
+                  'product_id': i.productId,
+                  'product_name': i.productName,
+                  'unit_price': i.unitPrice,
+                  'quantity': i.quantity,
+                })
+            .toList(),
+        subtotal: subtotal,
+        discountAmount: discountAmount,
+        totalAmount: total,
+      );
+      final serverId = data['id'] as String;
+      final serverNum = data['order_number'] as String? ?? number;
+      // temp ID → サーバー ID に差し替え
+      state = [
+        for (final o in state)
+          if (o.id == tempId)
+            OrderModel(
+              id: serverId,
+              orderNumber: serverNum,
+              items: o.items,
+              subtotal: o.subtotal,
+              discountAmount: o.discountAmount,
+              totalAmount: o.totalAmount,
+              orderedAt: o.orderedAt,
+              status: OrderStatus.pending,
+            )
+          else
+            o,
+      ];
+    } catch (_) {
+      // API 失敗: ローカルの temp ID で動作継続
+    }
+  }
+
+  // ── 精算完了（精算のみモード）──
+  void completeOrder(String id, PaymentMethod method, {int? receivedAmount}) {
+    state = [
+      for (final o in state)
+        if (o.id == id)
+          o.copyWith(
+            status: OrderStatus.completed,
+            paymentMethod: method,
+            receivedAmount: receivedAmount,
+          )
+        else
+          o,
+    ];
+    final methodStr = method == PaymentMethod.cash ? 'cash' : 'card';
+    _api.completeOrder(id, methodStr, receivedAmount).catchError((_) {});
+  }
+
+  // ── 支払い済み・お渡し待ち（精算＋お渡しモード）──
+  void readyOrderForPickup(String id, PaymentMethod method,
+      {int? receivedAmount}) {
+    state = [
+      for (final o in state)
+        if (o.id == id)
+          o.copyWith(
+            status: OrderStatus.readyForPickup,
+            paymentMethod: method,
+            receivedAmount: receivedAmount,
+          )
+        else
+          o,
+    ];
+    final methodStr = method == PaymentMethod.cash ? 'cash' : 'card';
+    _api.readyOrder(id, methodStr, receivedAmount).catchError((_) {});
+  }
+
+  // ── お渡し完了（注文確認画面から利用）──
+  void handoverOrder(String id) {
+    state = [
+      for (final o in state)
+        if (o.id == id) o.copyWith(status: OrderStatus.completed) else o,
+    ];
+    _api.handoverOrder(id).catchError((_) {});
+  }
+
+  // ── キャンセル ──
+  void cancelOrder(String id) {
+    state = [
+      for (final o in state)
+        if (o.id == id) o.copyWith(status: OrderStatus.cancelled) else o,
+    ];
+    _api.cancelOrder(id).catchError((_) {});
+  }
+
+  void reset() {
+    state = [];
+    _seq = 0;
+  }
+}
+
+// ─────────────────────────────────────
+// 待機中注文（精算前）
+// ─────────────────────────────────────
+final pendingOrdersProvider = Provider<List<OrderModel>>(
+    (ref) => ref.watch(orderListProvider).where((o) => o.isPending).toList());
+
+final pendingCountProvider =
+    Provider<int>((ref) => ref.watch(pendingOrdersProvider).length);
+
+// お渡し待ち注文（支払済・お渡し前）
+final readyForPickupOrdersProvider = Provider<List<OrderModel>>((ref) =>
+    ref.watch(orderListProvider).where((o) => o.isReadyForPickup).toList());
+
+final readyForPickupCountProvider =
+    Provider<int>((ref) => ref.watch(readyForPickupOrdersProvider).length);
+
+// ─────────────────────────────────────
+// 販売総数の集計（完了分のみ）
+// ─────────────────────────────────────
+final productSalesProvider = Provider<Map<String, int>>((ref) {
+  final orders = ref.watch(orderListProvider).where((o) => o.isCompleted);
+  final map = <String, int>{};
+  for (final order in orders) {
+    for (final item in order.items) {
+      map[item.productName] = (map[item.productName] ?? 0) + item.quantity;
+    }
+  }
+  return map;
+});
+
+final totalSoldProvider = Provider<int>(
+    (ref) => ref.watch(productSalesProvider).values.fold(0, (s, q) => s + q));
