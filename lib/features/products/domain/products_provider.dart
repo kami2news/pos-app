@@ -20,7 +20,7 @@ class ProductListNotifier extends StateNotifier<List<Product>> {
     try {
       final data = await _api.getProducts();
       state = data
-          .where((m) => !(m['is_deleted'] as bool? ?? false))
+          .where((m) => m['is_active'] as bool? ?? true)
           .map((m) => Product(
                 id: m['id'] as String,
                 name: m['name'] as String,

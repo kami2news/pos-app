@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../domain/models/auth_state.dart';
 import '../../../core/network/api_service.dart';
 import '../../products/domain/products_provider.dart';
+import '../../order/domain/order_provider.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
@@ -55,17 +56,22 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       await ref.read(productListProvider.notifier).loadProducts();
 
       // 現在の営業日を確認（取得済みトークンで直接APIを呼ぶ）
+      // active=true → {id, store_id, opened_at, is_active}
+      // active=false または取得失敗 → null
       final tokenApi = ApiService(token: token);
       final bday = await tokenApi.getCurrentBusinessDay();
       if (bday != null) {
+        // 営業日が開いている → businessDayStatus を open に更新
         ref.read(authStateProvider.notifier).update(
               (s) => s.copyWith(
-                businessDayStatus: bday['status'] as String? ?? 'open',
+                businessDayStatus: 'open',
                 businessDayId: bday['id'] as String?,
               ),
             );
+        // 当日の注文をAPIから復元（リロード・再ログイン時対応）
+        await ref.read(orderListProvider.notifier).loadOrders();
       }
-      // router が businessDayStatus に応じて /opening か /orders へリダイレクト
+      // bday == null → businessDayStatus は 'closed' のまま → router → /opening
     } on DioException catch (e) {
       final msg = e.response?.statusCode == 401
           ? '店舗コードまたはパスワードが違います'

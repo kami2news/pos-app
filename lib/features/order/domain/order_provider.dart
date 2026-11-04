@@ -157,6 +157,51 @@ class OrderListNotifier extends StateNotifier<List<OrderModel>> {
   String get _businessDayId =>
       _ref.read(authStateProvider).businessDayId ?? '';
 
+  // ── APIから当日注文を復元（ログイン時に呼ぶ）──
+  Future<void> loadOrders() async {
+    try {
+      final data = await _api.getOrders();
+      if (data.isEmpty) return;
+      _seq = data.length; // 連番を現在の注文数に合わせる
+      state = data.map((m) {
+        final rawItems = (m['items'] as List? ?? []);
+        final items = rawItems.map<OrderItem>((i) => OrderItem(
+              productId: i['product_id'] as String? ?? '',
+              productName: i['product_name'] as String? ?? '',
+              unitPrice: (i['unit_price'] as num).toInt(),
+              quantity: (i['quantity'] as num).toInt(),
+            )).toList();
+        return OrderModel(
+          id: m['id'] as String,
+          orderNumber: m['order_number'] as String,
+          items: List.unmodifiable(items),
+          subtotal: (m['subtotal'] as num).toInt(),
+          discountAmount: (m['discount_amount'] as num? ?? 0).toInt(),
+          totalAmount: (m['total_amount'] as num).toInt(),
+          orderedAt: DateTime.parse(m['ordered_at'] as String),
+          status: _statusFrom(m['status'] as String? ?? 'pending'),
+          paymentMethod: _paymentFrom(m['payment_method']),
+          receivedAmount: m['received_amount'] as int?,
+        );
+      }).toList();
+    } catch (_) {
+      // ロード失敗は無視（既存 state を維持）
+    }
+  }
+
+  static OrderStatus _statusFrom(String s) => switch (s) {
+        'completed'      => OrderStatus.completed,
+        'readyForPickup' => OrderStatus.readyForPickup,
+        'cancelled'      => OrderStatus.cancelled,
+        _                => OrderStatus.pending,
+      };
+
+  static PaymentMethod? _paymentFrom(dynamic s) => switch (s) {
+        'cash' => PaymentMethod.cash,
+        'card' => PaymentMethod.card,
+        _      => null,
+      };
+
   // ── 保留注文を登録（注文登録画面から利用）──
   // 楽観的更新: 呼び出し元が await しなくても即座に state が更新される
   Future<void> addPending(

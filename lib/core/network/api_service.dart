@@ -77,11 +77,9 @@ class ApiService {
   }
 
   // ─── Business Days ───────────────────────────────────────────
-  /// POST /api/business-days → {id, store_id, date, status, opening_cash}
-  Future<Map<String, dynamic>> openBusinessDay(int openingCash) async {
-    final res = await _dio.post('/api/business-days', data: {
-      'opening_cash': openingCash,
-    });
+  /// POST /api/business-days → {id, store_id, opened_at, is_active}
+  Future<Map<String, dynamic>> openBusinessDay() async {
+    final res = await _dio.post('/api/business-days');
     return Map<String, dynamic>.from(res.data as Map);
   }
 
@@ -90,11 +88,16 @@ class ApiService {
     await _dio.patch('/api/business-days/close');
   }
 
-  /// GET /api/business-days/current → {id, status, ...} or null(404)
+  /// GET /api/business-days/current
+  /// → {active: true,  business_day: {id, ...}} または {active: false}
+  /// active=false または取得失敗の場合は null を返す
   Future<Map<String, dynamic>?> getCurrentBusinessDay() async {
     try {
       final res = await _dio.get('/api/business-days/current');
-      return Map<String, dynamic>.from(res.data as Map);
+      final data = Map<String, dynamic>.from(res.data as Map);
+      final active = data['active'] as bool? ?? false;
+      if (!active) return null;
+      return Map<String, dynamic>.from(data['business_day'] as Map);
     } on DioException catch (e) {
       if (e.response?.statusCode == 404) return null;
       rethrow;
@@ -102,6 +105,12 @@ class ApiService {
   }
 
   // ─── Orders ──────────────────────────────────────────────────
+  /// GET /api/orders → 当日の注文一覧（items付き）
+  Future<List<Map<String, dynamic>>> getOrders() async {
+    final res = await _dio.get('/api/orders');
+    return List<Map<String, dynamic>>.from(res.data as List);
+  }
+
   /// POST /api/orders → {id, order_number, ...}
   Future<Map<String, dynamic>> createOrder({
     required String businessDayId,

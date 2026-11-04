@@ -37,9 +37,9 @@ class _OpeningScreenState extends ConsumerState<OpeningScreen> {
 
     setState(() => _loading = true);
     try {
-      // POST /api/business-days
+      // POST /api/business-days（opening_cash はGoサーバー未対応・送信なし）
       final api = ref.read(apiServiceProvider);
-      final data = await api.openBusinessDay(openingCash);
+      final data = await api.openBusinessDay();
 
       final businessDayId = data['id'] as String;
 
