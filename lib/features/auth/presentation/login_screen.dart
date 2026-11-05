@@ -36,7 +36,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
     setState(() => _loading = true);
     try {
-      // POST /auth/login
+      // 1) ログイン
       final api = ApiService(); // トークンなし（ログイン前）
       final data = await api.login(storeName, password);
 
@@ -44,34 +44,30 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       final storeId = data['store_id'] as String;
       final name = data['store_name'] as String;
 
-      // AuthState を更新（トークンをセット）
+      // 2) 営業日確認（authState 更新前にトークンを直接渡して確認）
+      //    先に確認することで authState の更新が1回で済み、
+      //    ルーターが中間状態（closed→open）に反応して /opening に
+      //    飛んでしまうレースコンディションを防ぐ
+      final tokenApi = ApiService(token: token);
+      final bday = await tokenApi.getCurrentBusinessDay();
+
+      // 3) AuthState を確定した状態で1回だけ更新
+      //    → ルーターはここで初めてリダイレクトを判断する
       ref.read(authStateProvider.notifier).state = AuthState(
         token: token,
         storeId: storeId,
         storeName: name,
-        businessDayStatus: 'closed',
+        businessDayStatus: bday != null ? 'open' : 'closed',
+        businessDayId: bday?['id'] as String?,
       );
 
-      // 商品一覧をAPIから取得
+      // 4) 商品一覧（authState のトークンが利用可能になった後）
       await ref.read(productListProvider.notifier).loadProducts();
 
-      // 現在の営業日を確認（取得済みトークンで直接APIを呼ぶ）
-      // active=true → {id, store_id, opened_at, is_active}
-      // active=false または取得失敗 → null
-      final tokenApi = ApiService(token: token);
-      final bday = await tokenApi.getCurrentBusinessDay();
+      // 5) 営業日が開いていれば当日の注文を復元
       if (bday != null) {
-        // 営業日が開いている → businessDayStatus を open に更新
-        ref.read(authStateProvider.notifier).update(
-              (s) => s.copyWith(
-                businessDayStatus: 'open',
-                businessDayId: bday['id'] as String?,
-              ),
-            );
-        // 当日の注文をAPIから復元（リロード・再ログイン時対応）
         await ref.read(orderListProvider.notifier).loadOrders();
       }
-      // bday == null → businessDayStatus は 'closed' のまま → router → /opening
     } on DioException catch (e) {
       final msg = e.response?.statusCode == 401
           ? '店舗コードまたはパスワードが違います'
