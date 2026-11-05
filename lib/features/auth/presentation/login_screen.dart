@@ -50,6 +50,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       //    飛んでしまうレースコンディションを防ぐ
       final tokenApi = ApiService(token: token);
       final bday = await tokenApi.getCurrentBusinessDay();
+      // ignore: avoid_print
+      print('[DEBUG] getCurrentBusinessDay => $bday');
 
       // 3) AuthState を確定した状態で1回だけ更新
       //    → ルーターはここで初めてリダイレクトを判断する
