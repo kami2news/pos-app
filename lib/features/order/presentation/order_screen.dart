@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -9,11 +10,35 @@ import '../domain/order_provider.dart';
 /// レジ画面（スタッフ操作 / Flow 2：登録〜精算まで一括）
 /// ─ 注文確定 → pending 登録 → すぐに精算画面へ遷移
 /// ─ AppBar の「精算待ち」バッジから Flow 1 のお客様注文も処理可能
-class OrderScreen extends ConsumerWidget {
+class OrderScreen extends ConsumerStatefulWidget {
   const OrderScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<OrderScreen> createState() => _OrderScreenState();
+}
+
+class _OrderScreenState extends ConsumerState<OrderScreen> {
+  Timer? _syncTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    // 5秒ごとに注文リストを再取得してリアルタイム同期
+    _syncTimer = Timer.periodic(const Duration(seconds: 5), (_) {
+      if (mounted) {
+        ref.read(orderListProvider.notifier).loadOrders();
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _syncTimer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final products = ref.watch(productListProvider);
     final cartItems = ref.watch(currentOrderProvider);
     final manualDiscount = ref.watch(manualDiscountProvider);
