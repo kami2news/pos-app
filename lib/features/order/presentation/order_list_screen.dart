@@ -35,13 +35,13 @@ class _OrderListScreenState extends ConsumerState<OrderListScreen> {
     final orders = ref.watch(orderListProvider);
     final productSales = ref.watch(productSalesProvider);
     final totalSold = ref.watch(totalSoldProvider);
-    final totalAmount = orders.fold(0, (s, o) => s + o.totalAmount);
+    final totalAmount = orders
+        .where((o) => o.isCompleted)
+        .fold(0, (s, o) => s + o.totalAmount);
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('注文一覧'),
-        backgroundColor: const Color(0xFF1456A0),
-        foregroundColor: Colors.white,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: () => context.go('/orders'),

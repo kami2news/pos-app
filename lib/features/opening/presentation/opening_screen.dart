@@ -76,8 +76,6 @@ class _OpeningScreenState extends ConsumerState<OpeningScreen> {
     return Scaffold(
       appBar: AppBar(
         title: Text('開設作業 - $storeName'),
-        backgroundColor: const Color(0xFF1456A0),
-        foregroundColor: Colors.white,
       ),
       body: Center(
         child: ConstrainedBox(

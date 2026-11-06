@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -8,11 +9,34 @@ import '../domain/models/order_model.dart';
 /// ─ 精算前（オレンジ）と精算後（グリーン）を色で区別
 /// ─ タブなし・全件表示で前準備しやすく
 /// ─ 精算操作はここでは行わない（レジ担当のCheckoutScreenへ）
-class OrderStatusScreen extends ConsumerWidget {
+class OrderStatusScreen extends ConsumerStatefulWidget {
   const OrderStatusScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<OrderStatusScreen> createState() => _OrderStatusScreenState();
+}
+
+class _OrderStatusScreenState extends ConsumerState<OrderStatusScreen> {
+  Timer? _syncTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    // 画面表示時に即時取得 + 5秒ごとに同期
+    ref.read(orderListProvider.notifier).loadOrders();
+    _syncTimer = Timer.periodic(const Duration(seconds: 5), (_) {
+      if (mounted) ref.read(orderListProvider.notifier).loadOrders();
+    });
+  }
+
+  @override
+  void dispose() {
+    _syncTimer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final orders = ref.watch(orderListProvider);
     final pending = orders.where((o) => o.isPending).toList().reversed.toList();
     final ready =
@@ -30,6 +54,14 @@ class OrderStatusScreen extends ConsumerWidget {
           icon: const Icon(Icons.arrow_back),
           onPressed: () => context.go('/orders'),
         ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            tooltip: '更新',
+            onPressed: () =>
+                ref.read(orderListProvider.notifier).loadOrders(),
+          ),
+        ],
       ),
 
       body: Column(children: [
@@ -63,7 +95,7 @@ class OrderStatusScreen extends ConsumerWidget {
                       ...pending.map((o) => _OrderCard(
                             order: o,
                             onCancelRequest: () =>
-                                _showCancelDialog(context, ref, o),
+                                _showCancelDialog(o),
                           )),
                       const SizedBox(height: 20),
                     ],
@@ -116,8 +148,7 @@ class OrderStatusScreen extends ConsumerWidget {
     );
   }
 
-  void _showCancelDialog(
-      BuildContext context, WidgetRef ref, OrderModel order) async {
+  void _showCancelDialog(OrderModel order) async {
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(

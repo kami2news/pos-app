@@ -184,8 +184,9 @@ class OrderListNotifier extends StateNotifier<List<OrderModel>> {
           receivedAmount: m['received_amount'] as int?,
         );
       }).toList();
-    } catch (_) {
+    } catch (e) {
       // ロード失敗は無視（既存 state を維持）
+      debugPrint('[OrderProvider] loadOrders error: $e');
     }
   }
 
@@ -283,7 +284,10 @@ class OrderListNotifier extends StateNotifier<List<OrderModel>> {
           o,
     ];
     final methodStr = method == PaymentMethod.cash ? 'cash' : 'card';
-    _api.completeOrder(id, methodStr, receivedAmount).catchError((_) {});
+    _api.completeOrder(id, methodStr, receivedAmount).catchError((e) {
+      debugPrint('[OrderProvider] completeOrder error: $e');
+      loadOrders(); // サーバー状態でUIを修正
+    });
   }
 
   // ── 支払い済み・お渡し待ち（精算＋お渡しモード）──
@@ -301,7 +305,10 @@ class OrderListNotifier extends StateNotifier<List<OrderModel>> {
           o,
     ];
     final methodStr = method == PaymentMethod.cash ? 'cash' : 'card';
-    _api.readyOrder(id, methodStr, receivedAmount).catchError((_) {});
+    _api.readyOrder(id, methodStr, receivedAmount).catchError((e) {
+      debugPrint('[OrderProvider] readyOrderForPickup error: $e');
+      loadOrders(); // サーバー状態でUIを修正
+    });
   }
 
   // ── お渡し完了（注文確認画面から利用）──
@@ -310,7 +317,10 @@ class OrderListNotifier extends StateNotifier<List<OrderModel>> {
       for (final o in state)
         if (o.id == id) o.copyWith(status: OrderStatus.completed) else o,
     ];
-    _api.handoverOrder(id).catchError((_) {});
+    _api.handoverOrder(id).catchError((e) {
+      debugPrint('[OrderProvider] handoverOrder error: $e');
+      loadOrders(); // サーバー状態でUIを修正
+    });
   }
 
   // ── キャンセル ──
@@ -319,7 +329,10 @@ class OrderListNotifier extends StateNotifier<List<OrderModel>> {
       for (final o in state)
         if (o.id == id) o.copyWith(status: OrderStatus.cancelled) else o,
     ];
-    _api.cancelOrder(id).catchError((_) {});
+    _api.cancelOrder(id).catchError((e) {
+      debugPrint('[OrderProvider] cancelOrder error: $e');
+      loadOrders(); // サーバー状態でUIを修正
+    });
   }
 
   void reset() {

@@ -57,8 +57,9 @@ class _ClosingScreenState extends ConsumerState<ClosingScreen> {
     final orders = ref.read(orderListProvider);
     final productSales = ref.read(productSalesProvider);
     final totalSold = ref.read(totalSoldProvider);
-    final totalAmount = orders.fold(0, (s, o) => s + o.totalAmount);
-    final totalDiscount = orders.fold(0, (s, o) => s + o.discountAmount);
+    final completedOrders = orders.where((o) => o.isCompleted).toList();
+    final totalAmount = completedOrders.fold(0, (s, o) => s + o.totalAmount);
+    final totalDiscount = completedOrders.fold(0, (s, o) => s + o.discountAmount);
 
     await showDialog(
       context: context,
@@ -112,16 +113,15 @@ class _ClosingScreenState extends ConsumerState<ClosingScreen> {
   @override
   Widget build(BuildContext context) {
     final orders = ref.watch(orderListProvider);
+    final completedOrders = orders.where((o) => o.isCompleted).toList();
     final totalSold = ref.watch(totalSoldProvider);
-    final totalAmount = orders.fold(0, (s, o) => s + o.totalAmount);
-    final totalDiscount = orders.fold(0, (s, o) => s + o.discountAmount);
+    final totalAmount = completedOrders.fold(0, (s, o) => s + o.totalAmount);
+    final totalDiscount = completedOrders.fold(0, (s, o) => s + o.discountAmount);
     final storeName = ref.watch(authStateProvider).storeName ?? '';
 
     return Scaffold(
       appBar: AppBar(
         title: Text('締め作業 - $storeName'),
-        backgroundColor: const Color(0xFF1456A0),
-        foregroundColor: Colors.white,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: () => context.go('/orders'),
