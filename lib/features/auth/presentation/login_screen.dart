@@ -49,11 +49,42 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       //    ルーターが中間状態（closed→open）に反応して /opening に
       //    飛んでしまうレースコンディションを防ぐ
       final tokenApi = ApiService(token: token);
-      final bday = await tokenApi.getCurrentBusinessDay();
-      // ignore: avoid_print
-      print('[DEBUG] getCurrentBusinessDay => $bday');
+      Map<String, dynamic>? bday = await tokenApi.getCurrentBusinessDay();
 
-      // 3) AuthState を確定した状態で1回だけ更新
+      // 3) 前日以前の営業日が残っている場合はポップアップ → 自動締め
+      if (bday != null) {
+        final openedAt =
+            DateTime.parse(bday['opened_at'] as String).toLocal();
+        final today = DateTime.now();
+        final isStale = openedAt.year != today.year ||
+            openedAt.month != today.month ||
+            openedAt.day != today.day;
+
+        if (isStale) {
+          if (!mounted) return;
+          await showDialog(
+            context: context,
+            barrierDismissible: false,
+            builder: (ctx) => AlertDialog(
+              title: const Text('前日の営業日が残っています'),
+              content: Text(
+                '${openedAt.year}年${openedAt.month}月${openedAt.day}日の営業日が'
+                '締められていません。\n自動的に締め処理を行い、本日の開設画面に移動します。',
+              ),
+              actions: [
+                FilledButton(
+                  onPressed: () => Navigator.of(ctx).pop(),
+                  child: const Text('確認して開設へ'),
+                ),
+              ],
+            ),
+          );
+          await tokenApi.closeBusinessDay();
+          bday = null;
+        }
+      }
+
+      // 4) AuthState を確定した状態で1回だけ更新
       //    → ルーターはここで初めてリダイレクトを判断する
       ref.read(authStateProvider.notifier).state = AuthState(
         token: token,
@@ -63,10 +94,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         businessDayId: bday?['id'] as String?,
       );
 
-      // 4) 商品一覧（authState のトークンが利用可能になった後）
+      // 5) 商品一覧（authState のトークンが利用可能になった後）
       await ref.read(productListProvider.notifier).loadProducts();
 
-      // 5) 営業日が開いていれば当日の注文を復元
+      // 6) 営業日が開いていれば当日の注文を復元
       if (bday != null) {
         await ref.read(orderListProvider.notifier).loadOrders();
       }
