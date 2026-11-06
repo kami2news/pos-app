@@ -178,7 +178,7 @@ class OrderListNotifier extends StateNotifier<List<OrderModel>> {
           subtotal: (m['subtotal'] as num).toInt(),
           discountAmount: (m['discount_amount'] as num? ?? 0).toInt(),
           totalAmount: (m['total_amount'] as num).toInt(),
-          orderedAt: DateTime.parse(m['ordered_at'] as String),
+          orderedAt: DateTime.parse(m['ordered_at'] as String).toLocal(),
           status: _statusFrom(m['status'] as String? ?? 'pending'),
           paymentMethod: _paymentFrom(m['payment_method']),
           receivedAmount: m['received_amount'] as int?,
