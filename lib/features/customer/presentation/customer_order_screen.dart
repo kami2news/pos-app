@@ -44,9 +44,8 @@ class _CustomerOrderScreenState extends State<CustomerOrderScreen> {
       });
     } catch (e) {
       if (!mounted) return;
-      // デバッグ用：実際のエラーを表示
       setState(() {
-        _error = 'エラー: $e\n\nstoreCode="${widget.storeCode}"';
+        _error = '店舗情報の読み込みに失敗しました。\nQRコードを読み直すか、スタッフにお声がけください。';
         _loading = false;
       });
     }
