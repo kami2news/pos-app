@@ -6,9 +6,7 @@ import '../domain/order_provider.dart';
 import '../domain/models/order_model.dart';
 
 /// 注文確認画面（製作スタッフ向け）
-/// ─ 精算前（オレンジ）と精算後（グリーン）を色で区別
-/// ─ タブなし・全件表示で前準備しやすく
-/// ─ 精算操作はここでは行わない（レジ担当のCheckoutScreenへ）
+/// ─ 精算前 / お渡し待ち / 精算後 の3タブ構成
 class OrderStatusScreen extends ConsumerStatefulWidget {
   const OrderStatusScreen({super.key});
 
@@ -16,13 +14,15 @@ class OrderStatusScreen extends ConsumerStatefulWidget {
   ConsumerState<OrderStatusScreen> createState() => _OrderStatusScreenState();
 }
 
-class _OrderStatusScreenState extends ConsumerState<OrderStatusScreen> {
+class _OrderStatusScreenState extends ConsumerState<OrderStatusScreen>
+    with SingleTickerProviderStateMixin {
   Timer? _syncTimer;
+  late TabController _tabController;
 
   @override
   void initState() {
     super.initState();
-    // 画面表示時に即時取得 + 5秒ごとに同期
+    _tabController = TabController(length: 3, vsync: this);
     ref.read(orderListProvider.notifier).loadOrders();
     _syncTimer = Timer.periodic(const Duration(seconds: 5), (_) {
       if (mounted) ref.read(orderListProvider.notifier).loadOrders();
@@ -32,6 +32,7 @@ class _OrderStatusScreenState extends ConsumerState<OrderStatusScreen> {
   @override
   void dispose() {
     _syncTimer?.cancel();
+    _tabController.dispose();
     super.dispose();
   }
 
@@ -62,6 +63,29 @@ class _OrderStatusScreenState extends ConsumerState<OrderStatusScreen> {
                 ref.read(orderListProvider.notifier).loadOrders(),
           ),
         ],
+        bottom: TabBar(
+          controller: _tabController,
+          labelColor: Colors.white,
+          unselectedLabelColor: Colors.white70,
+          indicatorColor: Colors.white,
+          tabs: [
+            _BadgeTab(
+              label: '精算前',
+              count: pending.length,
+              color: _orangeColor,
+            ),
+            _BadgeTab(
+              label: 'お渡し待ち',
+              count: ready.length,
+              color: _blueColor,
+            ),
+            _BadgeTab(
+              label: '精算後',
+              count: completed.length,
+              color: _greenColor,
+            ),
+          ],
+        ),
       ),
 
       body: Column(children: [
@@ -73,69 +97,46 @@ class _OrderStatusScreenState extends ConsumerState<OrderStatusScreen> {
           totalSales: totalSales,
         ),
 
-        // ─── 全件リスト ───
+        // ─── タブビュー ───
         Expanded(
-          child: (pending.isEmpty &&
-                  ready.isEmpty &&
-                  completed.isEmpty &&
-                  cancelled.isEmpty)
-              ? const _EmptyView()
-              : ListView(
-                  padding: const EdgeInsets.fromLTRB(12, 12, 12, 80),
-                  children: [
-                    // ── 精算前セクション ──
-                    if (pending.isNotEmpty) ...[
-                      _SectionHeader(
-                        label: '精算前',
-                        count: pending.length,
-                        color: _orangeColor,
-                        icon: Icons.hourglass_top_rounded,
-                      ),
-                      const SizedBox(height: 8),
-                      ...pending.map((o) => _OrderCard(
-                            order: o,
-                            onCancelRequest: () =>
-                                _showCancelDialog(o),
-                          )),
-                      const SizedBox(height: 20),
-                    ],
-
-                    // ── お渡し待ちセクション ──
-                    if (ready.isNotEmpty) ...[
-                      _SectionHeader(
-                        label: 'お渡し待ち',
-                        count: ready.length,
-                        color: _blueColor,
-                        icon: Icons.inventory_2_rounded,
-                      ),
-                      const SizedBox(height: 8),
-                      ...ready.map((o) => _OrderCard(
-                            order: o,
-                            onHandoverComplete: () => ref
-                                .read(orderListProvider.notifier)
-                                .handoverOrder(o.id),
-                          )),
-                      const SizedBox(height: 20),
-                    ],
-
-                    // ── 精算後セクション ──
-                    if (completed.isNotEmpty) ...[
-                      _SectionHeader(
-                        label: '精算後',
-                        count: completed.length,
-                        color: _greenColor,
-                        icon: Icons.check_circle_rounded,
-                      ),
-                      const SizedBox(height: 8),
-                      ...completed.map((o) => _OrderCard(order: o)),
-                      const SizedBox(height: 20),
-                    ],
-
-                    // ── キャンセルセクション（折りたたみ） ──
-                    if (cancelled.isNotEmpty)
-                      _CancelledSection(orders: cancelled),
-                  ],
+          child: TabBarView(
+            controller: _tabController,
+            children: [
+              // ── 精算前タブ ──
+              _OrderTabView(
+                orders: pending,
+                emptyMessage: '精算前の注文はありません',
+                emptyIcon: Icons.hourglass_empty,
+                itemBuilder: (o) => _OrderCard(
+                  order: o,
+                  onCancelRequest: () => _showCancelDialog(o),
                 ),
+              ),
+
+              // ── お渡し待ちタブ ──
+              _OrderTabView(
+                orders: ready,
+                emptyMessage: 'お渡し待ちの注文はありません',
+                emptyIcon: Icons.inventory_2_outlined,
+                itemBuilder: (o) => _OrderCard(
+                  order: o,
+                  onHandoverComplete: () => ref
+                      .read(orderListProvider.notifier)
+                      .handoverOrder(o.id),
+                ),
+              ),
+
+              // ── 精算後タブ ──
+              _OrderTabView(
+                orders: [...completed, ...cancelled],
+                emptyMessage: '精算後の注文はありません',
+                emptyIcon: Icons.check_circle_outline,
+                itemBuilder: (o) => o.isCancelled
+                    ? Opacity(opacity: 0.5, child: _OrderCard(order: o))
+                    : _OrderCard(order: o),
+              ),
+            ],
+          ),
         ),
       ]),
 
@@ -174,12 +175,81 @@ class _OrderStatusScreenState extends ConsumerState<OrderStatusScreen> {
   }
 }
 
-// ─── カラー定数 ──────────────────────────────────────────────
-const _orangeColor = Color(0xFFF97316); // 精算前
-const _blueColor = Color(0xFF2563EB); // お渡し待ち
-const _greenColor = Color(0xFF16A34A); // 精算後
+// ─── タブラベル（バッジ付き） ─────────────────────────────────
+class _BadgeTab extends StatelessWidget {
+  final String label;
+  final int count;
+  final Color color;
+  const _BadgeTab({
+    required this.label,
+    required this.count,
+    required this.color,
+  });
 
-// ─── サマリーバー ──────────────────────────────────────────
+  @override
+  Widget build(BuildContext context) => Tab(
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(label),
+            if (count > 0) ...[
+              const SizedBox(width: 6),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.25),
+                  borderRadius: BorderRadius.circular(99),
+                ),
+                child: Text(
+                  '$count',
+                  style: const TextStyle(
+                      fontSize: 11, fontWeight: FontWeight.bold),
+                ),
+              ),
+            ],
+          ],
+        ),
+      );
+}
+
+// ─── タブ内リスト ────────────────────────────────────────────
+class _OrderTabView extends StatelessWidget {
+  final List<OrderModel> orders;
+  final String emptyMessage;
+  final IconData emptyIcon;
+  final Widget Function(OrderModel) itemBuilder;
+
+  const _OrderTabView({
+    required this.orders,
+    required this.emptyMessage,
+    required this.emptyIcon,
+    required this.itemBuilder,
+  });
+
+  @override
+  Widget build(BuildContext context) => orders.isEmpty
+      ? Center(
+          child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+            Icon(emptyIcon, size: 56, color: Colors.grey[300]),
+            const SizedBox(height: 12),
+            Text(emptyMessage,
+                style: TextStyle(color: Colors.grey[400], fontSize: 15)),
+          ]),
+        )
+      : ListView.builder(
+          padding: const EdgeInsets.fromLTRB(12, 12, 12, 100),
+          itemCount: orders.length,
+          itemBuilder: (_, i) => itemBuilder(orders[i]),
+        );
+}
+
+// ─── カラー定数 ──────────────────────────────────────────────
+const _orangeColor = Color(0xFFF97316);
+const _blueColor = Color(0xFF2563EB);
+const _greenColor = Color(0xFF16A34A);
+
+// ─── サマリーバー ────────────────────────────────────────────
 class _SummaryBar extends StatelessWidget {
   final int pendingCount, readyCount, completedCount, totalSales;
   const _SummaryBar({
@@ -244,47 +314,11 @@ class _Chip extends StatelessWidget {
       );
 }
 
-// ─── セクションヘッダー ─────────────────────────────────────
-class _SectionHeader extends StatelessWidget {
-  final String label;
-  final int count;
-  final Color color;
-  final IconData icon;
-  const _SectionHeader({
-    required this.label,
-    required this.count,
-    required this.color,
-    required this.icon,
-  });
-
-  @override
-  Widget build(BuildContext context) => Row(children: [
-        Icon(icon, size: 18, color: color),
-        const SizedBox(width: 6),
-        Text(label,
-            style: TextStyle(
-                fontSize: 15, fontWeight: FontWeight.bold, color: color)),
-        const SizedBox(width: 6),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-          decoration: BoxDecoration(
-            color: color.withValues(alpha: 0.12),
-            borderRadius: BorderRadius.circular(99),
-          ),
-          child: Text('$count件',
-              style: TextStyle(
-                  fontSize: 11, fontWeight: FontWeight.bold, color: color)),
-        ),
-        const SizedBox(width: 8),
-        Expanded(child: Divider(color: color.withValues(alpha: 0.3))),
-      ]);
-}
-
-// ─── 注文カード ─────────────────────────────────────────────
+// ─── 注文カード ──────────────────────────────────────────────
 class _OrderCard extends StatelessWidget {
   final OrderModel order;
-  final VoidCallback? onCancelRequest; // 精算前のみ表示
-  final VoidCallback? onHandoverComplete; // お渡し待ちのみ表示
+  final VoidCallback? onCancelRequest;
+  final VoidCallback? onHandoverComplete;
   const _OrderCard({
     required this.order,
     this.onCancelRequest,
@@ -294,17 +328,17 @@ class _OrderCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isPending = order.isPending;
-    final isReadyForPickup = order.isReadyForPickup;
+    final isReady = order.isReadyForPickup;
     final borderColor = isPending
         ? _orangeColor
-        : isReadyForPickup
+        : isReady
             ? _blueColor
             : _greenColor;
     final bgColor = isPending
-        ? const Color(0xFFFFF7ED) // amber[50]相当
-        : isReadyForPickup
-            ? const Color(0xFFEFF6FF) // blue[50]相当
-            : const Color(0xFFF0FDF4); // green[50]相当
+        ? const Color(0xFFFFF7ED)
+        : isReady
+            ? const Color(0xFFEFF6FF)
+            : const Color(0xFFF0FDF4);
 
     final time = order.orderedAt;
     final timeStr = '${time.hour.toString().padLeft(2, '0')}:'
@@ -330,7 +364,6 @@ class _OrderCard extends StatelessWidget {
             children: [
               // ─── ヘッダー行 ───
               Row(children: [
-                // 整理番号バッジ
                 Container(
                   padding:
                       const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
@@ -350,7 +383,6 @@ class _OrderCard extends StatelessWidget {
                 Text(timeStr,
                     style: const TextStyle(color: Colors.grey, fontSize: 13)),
                 const Spacer(),
-                // 合計金額
                 Text('¥${order.totalAmount}',
                     style: const TextStyle(
                         fontWeight: FontWeight.bold, fontSize: 16)),
@@ -380,7 +412,7 @@ class _OrderCard extends StatelessWidget {
                     ]),
                   )),
 
-              // ─── 精算前のみ：キャンセルボタン ───
+              // ─── 精算前：キャンセルボタン ───
               if (onCancelRequest != null) ...[
                 const SizedBox(height: 10),
                 Row(
@@ -403,12 +435,11 @@ class _OrderCard extends StatelessWidget {
                 ),
               ],
 
-              // ─── お渡し待ちのみ：支払い方法 ＋ お渡し完了ボタン ───
+              // ─── お渡し待ち：お渡し完了ボタン ───
               if (onHandoverComplete != null) ...[
                 const SizedBox(height: 10),
                 Row(
                   children: [
-                    // 支払い方法
                     if (order.paymentMethod != null) ...[
                       Icon(
                         order.paymentMethod == PaymentMethod.cash
@@ -422,15 +453,16 @@ class _OrderCard extends StatelessWidget {
                         order.paymentMethod == PaymentMethod.cash
                             ? '現金支払済み'
                             : 'カード支払済み',
-                        style: const TextStyle(color: _blueColor, fontSize: 12),
+                        style:
+                            const TextStyle(color: _blueColor, fontSize: 12),
                       ),
                     ],
                     const Spacer(),
                     FilledButton.icon(
                       onPressed: onHandoverComplete,
                       icon: const Icon(Icons.check, size: 16),
-                      label:
-                          const Text('お渡し完了', style: TextStyle(fontSize: 13)),
+                      label: const Text('お渡し完了',
+                          style: TextStyle(fontSize: 13)),
                       style: FilledButton.styleFrom(
                         backgroundColor: _blueColor,
                         padding: const EdgeInsets.symmetric(
@@ -443,7 +475,7 @@ class _OrderCard extends StatelessWidget {
                 ),
               ],
 
-              // ─── 精算後のみ：支払い方法表示 ───
+              // ─── 精算後：支払い方法表示 ───
               if (order.isCompleted && order.paymentMethod != null) ...[
                 const SizedBox(height: 6),
                 Row(children: [
@@ -469,45 +501,6 @@ class _OrderCard extends StatelessWidget {
       ),
     );
   }
-}
-
-// ─── キャンセル注文（折りたたみ） ────────────────────────────
-class _CancelledSection extends StatefulWidget {
-  final List<OrderModel> orders;
-  const _CancelledSection({required this.orders});
-
-  @override
-  State<_CancelledSection> createState() => _CancelledSectionState();
-}
-
-class _CancelledSectionState extends State<_CancelledSection> {
-  bool _expanded = false;
-
-  @override
-  Widget build(BuildContext context) => Column(children: [
-        InkWell(
-          onTap: () => setState(() => _expanded = !_expanded),
-          borderRadius: BorderRadius.circular(6),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 6),
-            child: Row(children: [
-              Icon(
-                _expanded ? Icons.expand_less : Icons.expand_more,
-                size: 18,
-                color: Colors.grey,
-              ),
-              const SizedBox(width: 4),
-              Text('キャンセル ${widget.orders.length}件',
-                  style: const TextStyle(color: Colors.grey, fontSize: 13)),
-            ]),
-          ),
-        ),
-        if (_expanded)
-          ...widget.orders.map((o) => Opacity(
-                opacity: 0.5,
-                child: _OrderCard(order: o),
-              )),
-      ]);
 }
 
 // ─── 空表示 ──────────────────────────────────────────────────
