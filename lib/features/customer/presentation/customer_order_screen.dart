@@ -44,8 +44,9 @@ class _CustomerOrderScreenState extends State<CustomerOrderScreen> {
       });
     } catch (e) {
       if (!mounted) return;
+      // デバッグ用：実際のエラーを表示
       setState(() {
-        _error = '読み込みに失敗しました\n通信状況を確認してください';
+        _error = 'エラー: $e\n\nstoreCode="${widget.storeCode}"';
         _loading = false;
       });
     }
