@@ -1,10 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_web_plugins/url_strategy.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'features/auth/domain/models/auth_state.dart';
 import 'router/router.dart';
 
 void main() {
+  // ハッシュなしのパスベースURL（例: /customer/xxx）を使用する
+  // これがないとQRコードのURLでアクセスしたときルーターが正しく動作しない
+  usePathUrlStrategy();
   runApp(const ProviderScope(child: MyApp()));
 }
 
