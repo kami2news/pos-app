@@ -1,8 +1,10 @@
 import 'dart:async';
 import 'dart:math';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 import '../../auth/domain/models/auth_state.dart';
 import '../../products/domain/products_provider.dart';
 import '../domain/order_provider.dart';
@@ -54,6 +56,12 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
       appBar: AppBar(
         title: Text('注文入力 - $storeName'),
         actions: [
+          // ─── 注文者QRコード ───
+          IconButton(
+            onPressed: () => _showQrDialog(context, storeName),
+            icon: const Icon(Icons.qr_code, color: Colors.white),
+            tooltip: 'お客様注文QR',
+          ),
           // ─── 精算待ちバッジ（Flow 1：お客様自己注文の精算）───
           Stack(
             alignment: Alignment.center,
@@ -412,6 +420,71 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  // ─── お客様注文QRコードダイアログ ───
+  void _showQrDialog(BuildContext context, String storeName) {
+    final encoded = Uri.encodeComponent(storeName);
+    const baseUrl = 'https://kami2pos-app.web.app';
+    final url = '$baseUrl/customer/$encoded';
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('お客様注文QRコード',
+            textAlign: TextAlign.center),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            QrImageView(
+              data: url,
+              version: QrVersions.auto,
+              size: 220,
+            ),
+            const SizedBox(height: 12),
+            const Text('お客様のスマホで読み取ってください',
+                style: TextStyle(fontSize: 13, color: Colors.grey),
+                textAlign: TextAlign.center),
+            const SizedBox(height: 8),
+            GestureDetector(
+              onTap: () {
+                Clipboard.setData(ClipboardData(text: url));
+                ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                        content: Text('URLをコピーしました'),
+                        duration: Duration(seconds: 2)));
+              },
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade100,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.grey.shade300),
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(url,
+                          style: const TextStyle(fontSize: 11),
+                          overflow: TextOverflow.ellipsis),
+                    ),
+                    const SizedBox(width: 6),
+                    const Icon(Icons.copy, size: 16, color: Colors.grey),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('閉じる'),
+          ),
+        ],
+        actionsAlignment: MainAxisAlignment.center,
       ),
     );
   }
