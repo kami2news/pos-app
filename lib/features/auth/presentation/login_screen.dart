@@ -44,6 +44,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       final token = data['token'] as String;
       final storeId = data['store_id'] as String;
       final name = data['store_name'] as String;
+      final rawColor = data['theme_color'] as int? ?? 1333408;
+      final themeColor = 0xFF000000 | (rawColor & 0xFFFFFF);
 
       // 2) 営業日確認（authState 更新前にトークンを直接渡して確認）
       //    先に確認することで authState の更新が1回で済み、
@@ -93,6 +95,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         storeName: name,
         businessDayStatus: bday != null ? 'open' : 'closed',
         businessDayId: bday?['id'] as String?,
+        themeColor: themeColor,
       );
 
       // 5) 商品一覧（authState のトークンが利用可能になった後）

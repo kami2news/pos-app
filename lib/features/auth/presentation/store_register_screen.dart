@@ -72,8 +72,8 @@ class _StoreRegisterScreenState extends ConsumerState<StoreRegisterScreen> {
     try {
       final api = ApiService();
 
-      // 店舗登録（店舗コードを store_name として登録）
-      await api.registerStore(code, pw);
+      // 店舗登録（テーマカラーも送信）
+      await api.registerStore(code, pw, themeColor: _selected & 0xFFFFFF);
 
       // 登録成功 → ログイン画面へ
       if (mounted) {

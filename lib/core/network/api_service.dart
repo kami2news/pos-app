@@ -36,9 +36,13 @@ class ApiService {
   /// POST /auth/register → {store_id, store_name}
   /// X-Admin-Secret ヘッダーが必要
   Future<Map<String, dynamic>> registerStore(
-      String storeName, String password) async {
+      String storeName, String password, {int themeColor = 1333408}) async {
     final res = await _dio.post('/auth/register',
-      data: {'store_name': storeName, 'password': password},
+      data: {
+        'store_name': storeName,
+        'password': password,
+        'theme_color': themeColor,
+      },
       options: Options(headers: {'X-Admin-Secret': 'kami2pos-admin-2024'}),
     );
     return Map<String, dynamic>.from(res.data as Map);
