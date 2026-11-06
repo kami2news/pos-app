@@ -1,13 +1,37 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../domain/order_provider.dart';
 
-class OrderListScreen extends ConsumerWidget {
+class OrderListScreen extends ConsumerStatefulWidget {
   const OrderListScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<OrderListScreen> createState() => _OrderListScreenState();
+}
+
+class _OrderListScreenState extends ConsumerState<OrderListScreen> {
+  Timer? _syncTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    // 画面を開いたら即時取得 + 5秒ごとに同期
+    ref.read(orderListProvider.notifier).loadOrders();
+    _syncTimer = Timer.periodic(const Duration(seconds: 5), (_) {
+      if (mounted) ref.read(orderListProvider.notifier).loadOrders();
+    });
+  }
+
+  @override
+  void dispose() {
+    _syncTimer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final orders = ref.watch(orderListProvider);
     final productSales = ref.watch(productSalesProvider);
     final totalSold = ref.watch(totalSoldProvider);
