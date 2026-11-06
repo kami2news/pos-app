@@ -678,7 +678,8 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
               // (await することで tempId→serverId 置換後に遷移できる)
               final orderId = await ref
                   .read(orderListProvider.notifier)
-                  .addPending(cartItems, subtotal, totalDiscount);
+                  .addPending(cartItems, subtotal, totalDiscount,
+                      manualDiscountAmount: manualDiscount);
               ref.read(currentOrderProvider.notifier).clear();
               ref.read(manualDiscountProvider.notifier).state = 0;
 

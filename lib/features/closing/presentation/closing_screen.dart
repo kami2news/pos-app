@@ -30,12 +30,10 @@ class _ClosingScreenState extends ConsumerState<ClosingScreen> {
     }
     setState(() => _loading = true);
     try {
-      // PATCH /api/business-days/close
       final api = ref.read(apiServiceProvider);
       await api.closeBusinessDay();
     } on DioException catch (e) {
-      final msg =
-          e.response?.data?['error'] ?? '締め処理に失敗しました（${e.message}）';
+      final msg = e.response?.data?['error'] ?? '締め処理に失敗しました（${e.message}）';
       if (!mounted) return;
       ScaffoldMessenger.of(context)
           .showSnackBar(SnackBar(content: Text(msg.toString())));
@@ -55,11 +53,10 @@ class _ClosingScreenState extends ConsumerState<ClosingScreen> {
 
   Future<void> _showClosingReport() async {
     final orders = ref.read(orderListProvider);
-    final productSales = ref.read(productSalesProvider);
-    final totalSold = ref.read(totalSoldProvider);
     final completedOrders = orders.where((o) => o.isCompleted).toList();
     final totalAmount = completedOrders.fold(0, (s, o) => s + o.totalAmount);
-    final totalDiscount = completedOrders.fold(0, (s, o) => s + o.discountAmount);
+    final discountSummary = ref.read(discountSummaryProvider);
+    final details = ref.read(productSaleDetailsProvider);
 
     await showDialog(
       context: context,
@@ -68,30 +65,35 @@ class _ClosingScreenState extends ConsumerState<ClosingScreen> {
         title: const Text('締め完了レポート', textAlign: TextAlign.center),
         content: SingleChildScrollView(
           child: Column(mainAxisSize: MainAxisSize.min, children: [
-            // 売上サマリー
-            _ReportRow('注文件数', '${orders.length}件'),
-            _ReportRow('販売総数', '$totalSold点', bold: true),
-            _ReportRow('割引合計', '-¥$totalDiscount',
-                color: totalDiscount > 0 ? Colors.red : null),
+            _ReportRow('注文件数', '${completedOrders.length}件'),
+            _ReportRow(
+                '販売総数',
+                '${details.fold(0, (s, d) => s + d.quantity)}点',
+                bold: true),
+            if (discountSummary.total > 0) ...[
+              if (discountSummary.autoDiscount > 0)
+                _ReportRow('自動割引', '-¥${discountSummary.autoDiscount}',
+                    color: Colors.orange[700]),
+              if (discountSummary.manualDiscount > 0)
+                _ReportRow('手動割引', '-¥${discountSummary.manualDiscount}',
+                    color: Colors.red),
+            ],
             const Divider(),
             _ReportRow('売上合計', '¥$totalAmount', bold: true, fontSize: 20),
             _ReportRow('レジ内金（締め）', '¥${_cashCtrl.text}'),
             const SizedBox(height: 16),
 
-            // 商品別販売数
-            if (productSales.isNotEmpty) ...[
+            if (details.isNotEmpty) ...[
               const Align(
                 alignment: Alignment.centerLeft,
-                child: Text('商品別販売数',
+                child: Text('商品別売上',
                     style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w600,
                         color: Colors.grey)),
               ),
               const SizedBox(height: 6),
-              ...(productSales.entries.toList()
-                    ..sort((a, b) => b.value.compareTo(a.value)))
-                  .map((e) => _ReportRow(e.key, '${e.value}点')),
+              ...details.map((d) => _ProductDetailRow(d)),
             ],
           ]),
         ),
@@ -116,7 +118,8 @@ class _ClosingScreenState extends ConsumerState<ClosingScreen> {
     final completedOrders = orders.where((o) => o.isCompleted).toList();
     final totalSold = ref.watch(totalSoldProvider);
     final totalAmount = completedOrders.fold(0, (s, o) => s + o.totalAmount);
-    final totalDiscount = completedOrders.fold(0, (s, o) => s + o.discountAmount);
+    final discountSummary = ref.watch(discountSummaryProvider);
+    final details = ref.watch(productSaleDetailsProvider);
     final storeName = ref.watch(authStateProvider).storeName ?? '';
 
     return Scaffold(
@@ -135,7 +138,7 @@ class _ClosingScreenState extends ConsumerState<ClosingScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // 売上サマリー
+                // ─── 売上サマリー ───
                 Card(
                   child: Padding(
                     padding: const EdgeInsets.all(20),
@@ -144,11 +147,19 @@ class _ClosingScreenState extends ConsumerState<ClosingScreen> {
                           style: TextStyle(
                               fontWeight: FontWeight.bold, fontSize: 15)),
                       const SizedBox(height: 16),
-                      _ReportRow('注文件数', '${orders.length}件'),
+                      _ReportRow('注文件数', '${completedOrders.length}件'),
                       _ReportRow('販売総数', '$totalSold点', bold: true),
-                      if (totalDiscount > 0)
-                        _ReportRow('割引合計', '-¥$totalDiscount',
-                            color: Colors.red),
+                      if (discountSummary.total > 0) ...[
+                        const SizedBox(height: 4),
+                        if (discountSummary.autoDiscount > 0)
+                          _ReportRow(
+                              '自動割引', '-¥${discountSummary.autoDiscount}',
+                              color: Colors.orange[700]),
+                        if (discountSummary.manualDiscount > 0)
+                          _ReportRow(
+                              '手動割引', '-¥${discountSummary.manualDiscount}',
+                              color: Colors.red),
+                      ],
                       const Divider(),
                       _ReportRow('売上合計', '¥$totalAmount',
                           bold: true, fontSize: 22),
@@ -157,24 +168,82 @@ class _ClosingScreenState extends ConsumerState<ClosingScreen> {
                 ),
                 const SizedBox(height: 12),
 
-                // 商品別販売数
-                if (totalSold > 0)
+                // ─── 商品別売上 ───
+                if (details.isNotEmpty)
                   Card(
                     child: ExpansionTile(
-                      title: Text('商品別販売数（合計$totalSold点）',
+                      initiallyExpanded: true,
+                      title: Text('商品別売上（合計$totalSold点）',
                           style: const TextStyle(
                               fontSize: 14, fontWeight: FontWeight.w500)),
                       children: [
                         Padding(
                           padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
                           child: Column(
-                            children: (ref
-                                    .watch(productSalesProvider)
-                                    .entries
-                                    .toList()
-                                  ..sort((a, b) => b.value.compareTo(a.value)))
-                                .map((e) => _ReportRow(e.key, '${e.value}点'))
-                                .toList(),
+                            children: [
+                              // ヘッダー行
+                              Padding(
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 4),
+                                child: Row(children: [
+                                  const Expanded(
+                                      child: Text('商品',
+                                          style: TextStyle(
+                                              fontSize: 11,
+                                              color: Colors.grey))),
+                                  SizedBox(
+                                      width: 70,
+                                      child: Text('単価',
+                                          textAlign: TextAlign.right,
+                                          style: const TextStyle(
+                                              fontSize: 11,
+                                              color: Colors.grey))),
+                                  SizedBox(
+                                      width: 40,
+                                      child: Text('数量',
+                                          textAlign: TextAlign.right,
+                                          style: const TextStyle(
+                                              fontSize: 11,
+                                              color: Colors.grey))),
+                                  SizedBox(
+                                      width: 70,
+                                      child: Text('金額',
+                                          textAlign: TextAlign.right,
+                                          style: const TextStyle(
+                                              fontSize: 11,
+                                              color: Colors.grey))),
+                                ]),
+                              ),
+                              const Divider(height: 8),
+                              ...details.map((d) => _ProductDetailRow(d)),
+                              const Divider(height: 8),
+                              Row(children: [
+                                const Expanded(
+                                    child: Text('合計',
+                                        style: TextStyle(
+                                            fontSize: 13,
+                                            fontWeight: FontWeight.bold))),
+                                SizedBox(
+                                    width: 70,
+                                    child: Text('',
+                                        textAlign: TextAlign.right)),
+                                SizedBox(
+                                    width: 40,
+                                    child: Text('$totalSold',
+                                        textAlign: TextAlign.right,
+                                        style: const TextStyle(
+                                            fontSize: 13,
+                                            fontWeight: FontWeight.bold))),
+                                SizedBox(
+                                    width: 70,
+                                    child: Text(
+                                        '¥${details.fold(0, (s, d) => s + d.amount)}',
+                                        textAlign: TextAlign.right,
+                                        style: const TextStyle(
+                                            fontSize: 13,
+                                            fontWeight: FontWeight.bold))),
+                              ]),
+                            ],
                           ),
                         ),
                       ],
@@ -182,7 +251,7 @@ class _ClosingScreenState extends ConsumerState<ClosingScreen> {
                   ),
                 const SizedBox(height: 12),
 
-                // レジ内金入力
+                // ─── レジ内金入力 ───
                 Card(
                   child: Padding(
                     padding: const EdgeInsets.all(20),
@@ -230,6 +299,40 @@ class _ClosingScreenState extends ConsumerState<ClosingScreen> {
   }
 }
 
+// ─── 商品別売上行 ────────────────────────────────────────────
+class _ProductDetailRow extends StatelessWidget {
+  final ProductSaleDetail detail;
+  const _ProductDetailRow(this.detail);
+
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: Row(children: [
+          Expanded(
+              child: Text(detail.name,
+                  style: const TextStyle(fontSize: 13),
+                  overflow: TextOverflow.ellipsis)),
+          SizedBox(
+              width: 70,
+              child: Text('¥${detail.unitPrice}',
+                  textAlign: TextAlign.right,
+                  style: const TextStyle(fontSize: 13, color: Colors.grey))),
+          SizedBox(
+              width: 40,
+              child: Text('${detail.quantity}',
+                  textAlign: TextAlign.right,
+                  style: const TextStyle(fontSize: 13))),
+          SizedBox(
+              width: 70,
+              child: Text('¥${detail.amount}',
+                  textAlign: TextAlign.right,
+                  style: const TextStyle(
+                      fontSize: 13, fontWeight: FontWeight.w500))),
+        ]),
+      );
+}
+
+// ─── サマリー行 ──────────────────────────────────────────────
 class _ReportRow extends StatelessWidget {
   final String label, value;
   final bool bold;

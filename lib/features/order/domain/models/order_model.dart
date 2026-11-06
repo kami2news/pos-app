@@ -15,7 +15,8 @@ class OrderModel {
   final String orderNumber;
   final List<OrderItem> items;
   final int subtotal; // 割引前の小計
-  final int discountAmount; // 割引額（0以上）
+  final int discountAmount; // 割引額合計（自動＋手動）
+  final int manualDiscountAmount; // うち手動割引額
   final int totalAmount; // 最終合計（subtotal - discountAmount）
   final DateTime orderedAt;
   final OrderStatus status;
@@ -28,6 +29,7 @@ class OrderModel {
     required this.items,
     required this.subtotal,
     required this.discountAmount,
+    this.manualDiscountAmount = 0,
     required this.totalAmount,
     required this.orderedAt,
     this.status = OrderStatus.completed, // 既存の addOrder は即完了
@@ -61,6 +63,7 @@ class OrderModel {
         items: items,
         subtotal: subtotal,
         discountAmount: discountAmount,
+        manualDiscountAmount: manualDiscountAmount,
         totalAmount: totalAmount,
         orderedAt: orderedAt,
         status: status ?? this.status,

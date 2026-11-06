@@ -121,6 +121,7 @@ class ApiService {
     required List<Map<String, dynamic>> items,
     required int subtotal,
     required int discountAmount,
+    int manualDiscountAmount = 0,
     required int totalAmount,
   }) async {
     final res = await _dio.post('/api/orders', data: {
@@ -128,6 +129,7 @@ class ApiService {
       'items': items,
       'subtotal': subtotal,
       'discount_amount': discountAmount,
+      'manual_discount_amount': manualDiscountAmount,
       'total_amount': totalAmount,
     });
     return Map<String, dynamic>.from(res.data as Map);

@@ -178,6 +178,7 @@ class OrderListNotifier extends StateNotifier<List<OrderModel>> {
           items: List.unmodifiable(items),
           subtotal: (m['subtotal'] as num).toInt(),
           discountAmount: (m['discount_amount'] as num? ?? 0).toInt(),
+          manualDiscountAmount: (m['manual_discount_amount'] as num? ?? 0).toInt(),
           totalAmount: (m['total_amount'] as num).toInt(),
           orderedAt: DateTime.parse(m['ordered_at'] as String).toLocal(),
           status: _statusFrom(m['status'] as String? ?? 'pending'),
@@ -208,7 +209,8 @@ class OrderListNotifier extends StateNotifier<List<OrderModel>> {
   // API 完了後にサーバー発行の ID を返す。
   // 失敗時は tempId を返してローカル動作を継続する。
   Future<String> addPending(
-      List<OrderItem> items, int subtotal, int discountAmount) async {
+      List<OrderItem> items, int subtotal, int discountAmount,
+      {int manualDiscountAmount = 0}) async {
     _seq++;
     final number = _seq.toString().padLeft(3, '0');
     final total = max(0, subtotal - discountAmount);
@@ -223,6 +225,7 @@ class OrderListNotifier extends StateNotifier<List<OrderModel>> {
         items: List.unmodifiable(items),
         subtotal: subtotal,
         discountAmount: discountAmount,
+        manualDiscountAmount: manualDiscountAmount,
         totalAmount: total,
         orderedAt: DateTime.now(),
         status: OrderStatus.pending,
@@ -243,6 +246,7 @@ class OrderListNotifier extends StateNotifier<List<OrderModel>> {
             .toList(),
         subtotal: subtotal,
         discountAmount: discountAmount,
+        manualDiscountAmount: manualDiscountAmount,
         totalAmount: total,
       );
       final serverId = data['id'] as String;
@@ -257,6 +261,7 @@ class OrderListNotifier extends StateNotifier<List<OrderModel>> {
               items: o.items,
               subtotal: o.subtotal,
               discountAmount: o.discountAmount,
+              manualDiscountAmount: o.manualDiscountAmount,
               totalAmount: o.totalAmount,
               orderedAt: o.orderedAt,
               status: OrderStatus.pending,
@@ -374,3 +379,67 @@ final productSalesProvider = Provider<Map<String, int>>((ref) {
 
 final totalSoldProvider = Provider<int>(
     (ref) => ref.watch(productSalesProvider).values.fold(0, (s, q) => s + q));
+
+// ─────────────────────────────────────
+// 締め集計用：商品別売上明細（数量＋金額）
+// ─────────────────────────────────────
+class ProductSaleDetail {
+  final String name;
+  final int unitPrice;
+  final int quantity;
+  int get amount => unitPrice * quantity;
+  const ProductSaleDetail({
+    required this.name,
+    required this.unitPrice,
+    required this.quantity,
+  });
+}
+
+final productSaleDetailsProvider = Provider<List<ProductSaleDetail>>((ref) {
+  final orders = ref.watch(orderListProvider).where((o) => o.isCompleted);
+  // key: 'name|unitPrice'
+  final map = <String, ProductSaleDetail>{};
+  for (final order in orders) {
+    for (final item in order.items) {
+      final key = '${item.productName}|${item.unitPrice}';
+      final existing = map[key];
+      if (existing != null) {
+        map[key] = ProductSaleDetail(
+          name: item.productName,
+          unitPrice: item.unitPrice,
+          quantity: existing.quantity + item.quantity,
+        );
+      } else {
+        map[key] = ProductSaleDetail(
+          name: item.productName,
+          unitPrice: item.unitPrice,
+          quantity: item.quantity,
+        );
+      }
+    }
+  }
+  return map.values.toList()..sort((a, b) => b.amount.compareTo(a.amount));
+});
+
+// ─────────────────────────────────────
+// 締め集計用：割引内訳（自動 / 手動）
+// ─────────────────────────────────────
+class DiscountSummary {
+  final int autoDiscount;
+  final int manualDiscount;
+  int get total => autoDiscount + manualDiscount;
+  const DiscountSummary({required this.autoDiscount, required this.manualDiscount});
+}
+
+final discountSummaryProvider = Provider<DiscountSummary>((ref) {
+  final orders = ref.watch(orderListProvider).where((o) => o.isCompleted);
+  int manual = 0, total = 0;
+  for (final o in orders) {
+    total  += o.discountAmount;
+    manual += o.manualDiscountAmount;
+  }
+  return DiscountSummary(
+    autoDiscount:   total - manual,
+    manualDiscount: manual,
+  );
+});
