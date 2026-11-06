@@ -164,7 +164,7 @@ class ApiService {
   // ─── Public（認証不要・注文者モード） ────────────────────
   /// GET /public/:storeCode/info → {store_name, theme_color, is_open, products}
   Future<Map<String, dynamic>> getPublicStoreInfo(String storeCode) async {
-    final res = await _dio.get('/public/$storeCode/info');
+    final res = await _dio.get('/public/${Uri.encodeComponent(storeCode)}/info');
     return Map<String, dynamic>.from(res.data as Map);
   }
 
@@ -176,7 +176,7 @@ class ApiService {
     required int discountAmount,
     required int totalAmount,
   }) async {
-    final res = await _dio.post('/public/$storeCode/orders', data: {
+    final res = await _dio.post('/public/${Uri.encodeComponent(storeCode)}/orders', data: {
       'items': items,
       'subtotal': subtotal,
       'discount_amount': discountAmount,
