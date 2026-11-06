@@ -19,10 +19,25 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
   PaymentMethod? _method;
   final _receivedCtrl = TextEditingController();
   bool _processing = false;
+  bool _initializing = true; // 画面初期化中フラグ（サーバーから注文を再取得するまでの待機）
 
   /// true = 精算＋お渡し管理モード
   /// false = 精算のみモード（デフォルト）
   bool _withHandover = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // タイマーとの競合回避：画面を開いた瞬間にサーバーから最新注文一覧を取得する
+    // addPending() の tempId→serverId 差し替えの前に loadOrders() が走ると
+    // ローカル state から注文が消えてしまうため、ここで確実に再取得する
+    _initialize();
+  }
+
+  Future<void> _initialize() async {
+    await ref.read(orderListProvider.notifier).loadOrders();
+    if (mounted) setState(() => _initializing = false);
+  }
 
   @override
   void dispose() {
@@ -266,6 +281,14 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // サーバーからの再取得が完了するまでローディングを表示
+    if (_initializing) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('レジ精算')),
+        body: const Center(child: CircularProgressIndicator()),
+      );
+    }
+
     final orders = ref.watch(orderListProvider);
     final order = orders
         .cast<OrderModel?>()
