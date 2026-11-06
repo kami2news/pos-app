@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'features/auth/domain/models/auth_state.dart';
 import 'router/router.dart';
 
@@ -33,6 +34,8 @@ class MyApp extends ConsumerWidget {
           brightness: Brightness.light,
         ),
         useMaterial3: true,
+        // Noto Sans JP で日本語文字を確実に表示
+        textTheme: GoogleFonts.notoSansJpTextTheme(),
         // AppBar のデフォルトカラーをテーマカラーに統一
         appBarTheme: AppBarTheme(
           backgroundColor: seedColor,
