@@ -23,7 +23,9 @@ final routerProvider = Provider<GoRouter>((ref) {
     initialLocation: '/login',
     redirect: (context, state) {
       final isLoggedIn = authState.token != null;
-      final location = state.matchedLocation;
+      // go_router v13 では matchedLocation がルート確定前に "/" を返すことがある
+      // uri.path を使うことで遷移先の実際のパスを確実に取得する
+      final location = state.uri.path;
 
       if (!isLoggedIn) {
         if (location == '/login' || location == '/register') return null;
