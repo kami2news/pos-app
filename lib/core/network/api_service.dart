@@ -160,6 +160,36 @@ class ApiService {
   Future<void> cancelOrder(String orderId) async {
     await _dio.patch('/api/orders/$orderId/cancel');
   }
+
+  // ─── Public（認証不要・注文者モード） ────────────────────
+  /// GET /public/:storeCode/info → {store_name, theme_color, is_open, products}
+  Future<Map<String, dynamic>> getPublicStoreInfo(String storeCode) async {
+    final res = await _dio.get('/public/$storeCode/info');
+    return Map<String, dynamic>.from(res.data as Map);
+  }
+
+  /// POST /public/:storeCode/orders → 注文作成
+  Future<Map<String, dynamic>> createPublicOrder(
+    String storeCode, {
+    required List<Map<String, dynamic>> items,
+    required int subtotal,
+    required int discountAmount,
+    required int totalAmount,
+  }) async {
+    final res = await _dio.post('/public/$storeCode/orders', data: {
+      'items': items,
+      'subtotal': subtotal,
+      'discount_amount': discountAmount,
+      'total_amount': totalAmount,
+    });
+    return Map<String, dynamic>.from(res.data as Map);
+  }
+
+  /// GET /public/orders/:orderId → 注文ステータス確認
+  Future<Map<String, dynamic>> getPublicOrder(String orderId) async {
+    final res = await _dio.get('/public/orders/$orderId');
+    return Map<String, dynamic>.from(res.data as Map);
+  }
 }
 
 /// Riverpod Provider: ログイン中トークンを注入した ApiService

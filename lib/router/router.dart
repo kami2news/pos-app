@@ -13,6 +13,8 @@ import '../features/order/presentation/checkout_screen.dart';
 import '../features/closing/presentation/closing_screen.dart';
 import '../features/products/presentation/products_screen.dart';
 import '../features/discount/presentation/discount_rules_screen.dart';
+import '../features/customer/presentation/customer_order_screen.dart';
+import '../features/customer/presentation/customer_number_screen.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
   final authState = ref.watch(authStateProvider);
@@ -25,6 +27,8 @@ final routerProvider = Provider<GoRouter>((ref) {
 
       if (!isLoggedIn) {
         if (location == '/login' || location == '/register') return null;
+        // 注文者モード（QRアクセス）は認証不要
+        if (location.startsWith('/customer')) return null;
         return '/login';
       }
       if (location == '/login') {
@@ -62,6 +66,20 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/orders/checkout/:orderId',
         builder: (c, s) =>
             CheckoutScreen(orderId: s.pathParameters['orderId']!),
+      ),
+
+      // ─── 注文者モード（認証不要・QRコードアクセス） ───
+      GoRoute(
+        path: '/customer/:storeCode',
+        builder: (c, s) =>
+            CustomerOrderScreen(storeCode: s.pathParameters['storeCode']!),
+      ),
+      GoRoute(
+        path: '/customer/:storeCode/number/:orderId',
+        builder: (c, s) => CustomerNumberScreen(
+          storeCode: s.pathParameters['storeCode']!,
+          orderId: s.pathParameters['orderId']!,
+        ),
       ),
     ],
     errorBuilder: (c, s) => Scaffold(
