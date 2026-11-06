@@ -57,6 +57,7 @@ class _ClosingScreenState extends ConsumerState<ClosingScreen> {
     final totalAmount = completedOrders.fold(0, (s, o) => s + o.totalAmount);
     final discountSummary = ref.read(discountSummaryProvider);
     final details = ref.read(productSaleDetailsProvider);
+    final manualEntries = ref.read(manualDiscountEntriesProvider);
 
     await showDialog(
       context: context,
@@ -70,14 +71,12 @@ class _ClosingScreenState extends ConsumerState<ClosingScreen> {
                 '販売総数',
                 '${details.fold(0, (s, d) => s + d.quantity)}点',
                 bold: true),
-            if (discountSummary.total > 0) ...[
-              if (discountSummary.autoDiscount > 0)
-                _ReportRow('自動割引', '-¥${discountSummary.autoDiscount}',
-                    color: Colors.orange[700]),
-              if (discountSummary.manualDiscount > 0)
-                _ReportRow('手動割引', '-¥${discountSummary.manualDiscount}',
-                    color: Colors.red),
-            ],
+            if (discountSummary.autoDiscount > 0)
+              _ReportRow('自動割引', '-¥${discountSummary.autoDiscount}',
+                  color: Colors.orange[700]),
+            if (manualEntries.isNotEmpty)
+              _ReportRow('手動割引', '-¥${discountSummary.manualDiscount}',
+                  color: Colors.red),
             const Divider(),
             _ReportRow('売上合計', '¥$totalAmount', bold: true, fontSize: 20),
             _ReportRow('レジ内金（締め）', '¥${_cashCtrl.text}'),
@@ -94,6 +93,19 @@ class _ClosingScreenState extends ConsumerState<ClosingScreen> {
               ),
               const SizedBox(height: 6),
               ...details.map((d) => _ProductDetailRow(d)),
+            ],
+            if (manualEntries.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              const Align(
+                alignment: Alignment.centerLeft,
+                child: Text('手動割引の内訳',
+                    style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.grey)),
+              ),
+              const SizedBox(height: 6),
+              ...manualEntries.map((e) => _ManualDiscountRow(e)),
             ],
           ]),
         ),
@@ -120,6 +132,7 @@ class _ClosingScreenState extends ConsumerState<ClosingScreen> {
     final totalAmount = completedOrders.fold(0, (s, o) => s + o.totalAmount);
     final discountSummary = ref.watch(discountSummaryProvider);
     final details = ref.watch(productSaleDetailsProvider);
+    final manualEntries = ref.watch(manualDiscountEntriesProvider);
     final storeName = ref.watch(authStateProvider).storeName ?? '';
 
     return Scaffold(
@@ -149,16 +162,17 @@ class _ClosingScreenState extends ConsumerState<ClosingScreen> {
                       const SizedBox(height: 16),
                       _ReportRow('注文件数', '${completedOrders.length}件'),
                       _ReportRow('販売総数', '$totalSold点', bold: true),
-                      if (discountSummary.total > 0) ...[
+                      if (discountSummary.autoDiscount > 0) ...[
                         const SizedBox(height: 4),
-                        if (discountSummary.autoDiscount > 0)
-                          _ReportRow(
-                              '自動割引', '-¥${discountSummary.autoDiscount}',
-                              color: Colors.orange[700]),
-                        if (discountSummary.manualDiscount > 0)
-                          _ReportRow(
-                              '手動割引', '-¥${discountSummary.manualDiscount}',
-                              color: Colors.red),
+                        _ReportRow(
+                            '自動割引', '-¥${discountSummary.autoDiscount}',
+                            color: Colors.orange[700]),
+                      ],
+                      if (manualEntries.isNotEmpty) ...[
+                        const SizedBox(height: 4),
+                        _ReportRow(
+                            '手動割引', '-¥${discountSummary.manualDiscount}',
+                            color: Colors.red),
                       ],
                       const Divider(),
                       _ReportRow('売上合計', '¥$totalAmount',
@@ -251,6 +265,25 @@ class _ClosingScreenState extends ConsumerState<ClosingScreen> {
                   ),
                 const SizedBox(height: 12),
 
+                // ─── 手動割引内訳 ───
+                if (manualEntries.isNotEmpty)
+                  Card(
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text('手動割引の内訳',
+                              style: TextStyle(
+                                  fontSize: 14, fontWeight: FontWeight.w500)),
+                          const SizedBox(height: 10),
+                          ...manualEntries.map((e) => _ManualDiscountRow(e)),
+                        ],
+                      ),
+                    ),
+                  ),
+                const SizedBox(height: 12),
+
                 // ─── レジ内金入力 ───
                 Card(
                   child: Padding(
@@ -328,6 +361,30 @@ class _ProductDetailRow extends StatelessWidget {
                   textAlign: TextAlign.right,
                   style: const TextStyle(
                       fontSize: 13, fontWeight: FontWeight.w500))),
+        ]),
+      );
+}
+
+// ─── 手動割引行（商品名 + n円引き赤字）────────────────────────
+class _ManualDiscountRow extends StatelessWidget {
+  final ManualDiscountEntry entry;
+  const _ManualDiscountRow(this.entry);
+
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: Row(children: [
+          Expanded(
+            child: Text(entry.itemsLabel,
+                style: const TextStyle(fontSize: 13),
+                overflow: TextOverflow.ellipsis),
+          ),
+          const SizedBox(width: 8),
+          Text('${entry.amount}円引き',
+              style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.red)),
         ]),
       );
 }

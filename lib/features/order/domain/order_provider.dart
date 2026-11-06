@@ -443,3 +443,25 @@ final discountSummaryProvider = Provider<DiscountSummary>((ref) {
     manualDiscount: manual,
   );
 });
+
+// ─────────────────────────────────────
+// 締め集計用：手動割引が入った注文の一覧
+// ─────────────────────────────────────
+class ManualDiscountEntry {
+  final String itemsLabel; // 例: "コーヒー, パン ほか2品"
+  final int amount;        // 手動割引額
+  const ManualDiscountEntry({required this.itemsLabel, required this.amount});
+}
+
+final manualDiscountEntriesProvider = Provider<List<ManualDiscountEntry>>((ref) {
+  final orders = ref.watch(orderListProvider)
+      .where((o) => o.isCompleted && o.manualDiscountAmount > 0)
+      .toList();
+  return orders.map((o) {
+    final names = o.items.map((i) => i.productName).toList();
+    final label = names.length <= 2
+        ? names.join('、')
+        : '${names.take(2).join('、')} ほか${names.length - 2}品';
+    return ManualDiscountEntry(itemsLabel: label, amount: o.manualDiscountAmount);
+  }).toList();
+});
