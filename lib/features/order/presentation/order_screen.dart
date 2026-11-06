@@ -47,6 +47,10 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
     final autoResult = ref.watch(autoDiscountProvider);
     final storeName = ref.watch(authStateProvider).storeName ?? '';
     final pendingCount = ref.watch(pendingCountProvider);
+    final readyCount = ref
+        .watch(orderListProvider)
+        .where((o) => o.isReadyForPickup)
+        .length;
     final subtotal = ref.read(currentOrderProvider.notifier).subtotal;
     final totalDiscount =
         min(subtotal, autoResult.totalDiscount + manualDiscount);
@@ -85,6 +89,40 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
                         const BoxConstraints(minWidth: 18, minHeight: 18),
                     child: Text(
                       '$pendingCount',
+                      style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          // ─── 注文確認（お渡し待ちバッジ）───
+          Stack(
+            alignment: Alignment.center,
+            children: [
+              IconButton(
+                onPressed: () => context.go('/orders/status'),
+                icon: const Icon(Icons.assignment_turned_in,
+                    color: Colors.white),
+                tooltip: '注文確認',
+              ),
+              if (readyCount > 0)
+                Positioned(
+                  top: 8,
+                  right: 8,
+                  child: Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: const BoxDecoration(
+                      color: Color(0xFF2563EB),
+                      shape: BoxShape.circle,
+                    ),
+                    constraints:
+                        const BoxConstraints(minWidth: 18, minHeight: 18),
+                    child: Text(
+                      '$readyCount',
                       style: const TextStyle(
                           color: Colors.white,
                           fontSize: 11,
