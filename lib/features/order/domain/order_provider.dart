@@ -385,35 +385,54 @@ final totalSoldProvider = Provider<int>(
 // ─────────────────────────────────────
 class ProductSaleDetail {
   final String name;
-  final int unitPrice;
+  final int unitPrice;      // 実効単価（手動割引按分後）
   final int quantity;
+  final int discountPerItem; // 1個あたりの手動割引額（0 = 通常価格）
   int get amount => unitPrice * quantity;
   const ProductSaleDetail({
     required this.name,
     required this.unitPrice,
     required this.quantity,
+    this.discountPerItem = 0,
   });
 }
 
 final productSaleDetailsProvider = Provider<List<ProductSaleDetail>>((ref) {
   final orders = ref.watch(orderListProvider).where((o) => o.isCompleted);
-  // key: 'name|unitPrice'
+  // key: 'name|effectiveUnitPrice'
   final map = <String, ProductSaleDetail>{};
   for (final order in orders) {
     for (final item in order.items) {
-      final key = '${item.productName}|${item.unitPrice}';
+      // 手動割引がある場合、按分して実効単価を計算
+      int effectiveUnitPrice;
+      int discountPerItem;
+      if (order.manualDiscountAmount > 0 && order.subtotal > 0) {
+        effectiveUnitPrice =
+            (item.unitPrice *
+                    (order.subtotal - order.manualDiscountAmount) /
+                    order.subtotal)
+                .round();
+        discountPerItem = item.unitPrice - effectiveUnitPrice;
+      } else {
+        effectiveUnitPrice = item.unitPrice;
+        discountPerItem = 0;
+      }
+
+      final key = '${item.productName}|$effectiveUnitPrice';
       final existing = map[key];
       if (existing != null) {
         map[key] = ProductSaleDetail(
           name: item.productName,
-          unitPrice: item.unitPrice,
+          unitPrice: effectiveUnitPrice,
           quantity: existing.quantity + item.quantity,
+          discountPerItem: discountPerItem,
         );
       } else {
         map[key] = ProductSaleDetail(
           name: item.productName,
-          unitPrice: item.unitPrice,
+          unitPrice: effectiveUnitPrice,
           quantity: item.quantity,
+          discountPerItem: discountPerItem,
         );
       }
     }
@@ -444,24 +463,3 @@ final discountSummaryProvider = Provider<DiscountSummary>((ref) {
   );
 });
 
-// ─────────────────────────────────────
-// 締め集計用：手動割引が入った注文の一覧
-// ─────────────────────────────────────
-class ManualDiscountEntry {
-  final String itemsLabel; // 例: "コーヒー, パン ほか2品"
-  final int amount;        // 手動割引額
-  const ManualDiscountEntry({required this.itemsLabel, required this.amount});
-}
-
-final manualDiscountEntriesProvider = Provider<List<ManualDiscountEntry>>((ref) {
-  final orders = ref.watch(orderListProvider)
-      .where((o) => o.isCompleted && o.manualDiscountAmount > 0)
-      .toList();
-  return orders.map((o) {
-    final names = o.items.map((i) => i.productName).toList();
-    final label = names.length <= 2
-        ? names.join('、')
-        : '${names.take(2).join('、')} ほか${names.length - 2}品';
-    return ManualDiscountEntry(itemsLabel: label, amount: o.manualDiscountAmount);
-  }).toList();
-});
