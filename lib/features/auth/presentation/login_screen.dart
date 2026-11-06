@@ -6,6 +6,7 @@ import '../domain/models/auth_state.dart';
 import '../../../core/network/api_service.dart';
 import '../../products/domain/products_provider.dart';
 import '../../order/domain/order_provider.dart';
+import '../../../version.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
@@ -173,6 +174,15 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   TextButton(
                     onPressed: () => context.go('/register'),
                     child: const Text('店舗を新規登録する'),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'v$kAppVersion',
+                    style: const TextStyle(
+                      fontSize: 10,
+                      color: Colors.grey,
+                    ),
+                    textAlign: TextAlign.center,
                   ),
                 ],
               ),
