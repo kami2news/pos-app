@@ -1,3 +1,3 @@
 /// アプリバージョン管理
-/// デプロイのたびに更新される（git commit hash 先頭7文字）
-const String kAppVersion = 'b8ca06f';
+/// デプロイのたびに更新される（YYYY.MM.DD.N 形式、N はその日の何回目か）
+const String kAppVersion = '2026.11.06.1';
