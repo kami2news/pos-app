@@ -403,13 +403,13 @@ final productSaleDetailsProvider = Provider<List<ProductSaleDetail>>((ref) {
   final map = <String, ProductSaleDetail>{};
   for (final order in orders) {
     for (final item in order.items) {
-      // 手動割引がある場合、按分して実効単価を計算
+      // 自動・手動いずれの割引も按分して実効単価を計算
       int effectiveUnitPrice;
       int discountPerItem;
-      if (order.manualDiscountAmount > 0 && order.subtotal > 0) {
+      if (order.discountAmount > 0 && order.subtotal > 0) {
         effectiveUnitPrice =
             (item.unitPrice *
-                    (order.subtotal - order.manualDiscountAmount) /
+                    (order.subtotal - order.discountAmount) /
                     order.subtotal)
                 .round();
         discountPerItem = item.unitPrice - effectiveUnitPrice;
