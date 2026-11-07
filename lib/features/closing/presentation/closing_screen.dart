@@ -1,8 +1,13 @@
+import 'dart:typed_data';
+// ignore: avoid_web_libraries_in_flutter
+import 'dart:html' as html;
 import 'package:dio/dio.dart';
+import 'package:excel/excel.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../auth/domain/models/auth_state.dart';
+import '../../order/domain/models/order_model.dart';
 import '../../order/domain/order_provider.dart';
 import '../../../core/network/api_service.dart';
 
@@ -48,7 +53,112 @@ class _ClosingScreenState extends ConsumerState<ClosingScreen> {
     }
     setState(() => _loading = false);
     if (!mounted) return;
+    _exportExcel(); // 締め完了後 Excel ダウンロード
     await _showClosingReport();
+  }
+
+  // ─── Excel エクスポート ───────────────────────────────────────
+  void _exportExcel() {
+    final orders = ref.read(orderListProvider);
+    final completedOrders = orders.where((o) => o.isCompleted).toList();
+    final details = ref.read(productSaleDetailsProvider);
+    final storeName = ref.read(authStateProvider).storeName ?? 'store';
+    final now = DateTime.now();
+    final dateStr =
+        '${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}';
+
+    final excel = Excel.createExcel();
+
+    // ── Sheet 1: 商品別売上 ──────────────────────────────────────
+    final s1 = excel['商品別売上'];
+
+    // ヘッダー
+    s1.appendRow([
+      TextCellValue('商品名'),
+      TextCellValue('単価'),
+      TextCellValue('値引き'),
+      TextCellValue('個数'),
+      TextCellValue('合計'),
+    ]);
+
+    for (final d in details) {
+      s1.appendRow([
+        TextCellValue(d.name),
+        IntCellValue(d.unitPrice),
+        TextCellValue(d.discountPerItem > 0 ? '${d.discountPerItem}円引き' : ''),
+        IntCellValue(d.quantity),
+        IntCellValue(d.amount),
+      ]);
+    }
+
+    // 合計行
+    final totalQty = details.fold(0, (s, d) => s + d.quantity);
+    final totalAmt = completedOrders.fold(0, (s, o) => s + o.totalAmount);
+    s1.appendRow([
+      TextCellValue('合計'),
+      TextCellValue(''),
+      TextCellValue(''),
+      IntCellValue(totalQty),
+      IntCellValue(totalAmt),
+    ]);
+
+    // ── Sheet 2: タイムログ ──────────────────────────────────────
+    final s2 = excel['タイムログ'];
+
+    s2.appendRow([
+      TextCellValue('時刻'),
+      TextCellValue('注文番号'),
+      TextCellValue('商品名'),
+      TextCellValue('単価'),
+      TextCellValue('個数'),
+      TextCellValue('小計'),
+      TextCellValue('割引'),
+      TextCellValue('合計'),
+      TextCellValue('支払方法'),
+    ]);
+
+    final sortedOrders = completedOrders.toList()
+      ..sort((a, b) => a.orderedAt.compareTo(b.orderedAt));
+
+    for (final order in sortedOrders) {
+      final t = order.orderedAt;
+      final timeStr =
+          '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}:${t.second.toString().padLeft(2, '0')}';
+      final payment =
+          order.paymentMethod == PaymentMethod.cash ? '現金' : 'カード';
+
+      for (int i = 0; i < order.items.length; i++) {
+        final item = order.items[i];
+        final itemTotal = item.unitPrice * item.quantity;
+        s2.appendRow([
+          TextCellValue(i == 0 ? timeStr : ''),
+          TextCellValue(i == 0 ? order.orderNumber : ''),
+          TextCellValue(item.productName),
+          IntCellValue(item.unitPrice),
+          IntCellValue(item.quantity),
+          IntCellValue(itemTotal),
+          i == 0 ? IntCellValue(order.discountAmount) : TextCellValue(''),
+          i == 0 ? IntCellValue(order.totalAmount) : TextCellValue(''),
+          TextCellValue(i == 0 ? payment : ''),
+        ]);
+      }
+    }
+
+    // デフォルトシート削除
+    excel.delete('Sheet1');
+
+    // ダウンロード
+    final bytes = excel.save();
+    if (bytes == null) return;
+    final blob = html.Blob(
+      [Uint8List.fromList(bytes)],
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    );
+    final url = html.Url.createObjectUrlFromBlob(blob);
+    html.AnchorElement(href: url)
+      ..setAttribute('download', 'kami2pos_${storeName}_$dateStr.xlsx')
+      ..click();
+    html.Url.revokeObjectUrl(url);
   }
 
   Future<void> _showClosingReport() async {
