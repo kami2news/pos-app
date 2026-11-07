@@ -97,7 +97,8 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
 
     if (_withHandover) {
       // 精算＋お渡しモード：支払済み・お渡し待ちへ
-      ref.read(orderListProvider.notifier).readyOrderForPickup(
+      // awaitしてサーバー更新完了後にナビゲートする（race condition対策）
+      await ref.read(orderListProvider.notifier).readyOrderForPickup(
             widget.orderId,
             _method!,
             receivedAmount: _method == PaymentMethod.cash ? _received : null,
@@ -311,22 +312,31 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
       );
     }
 
-    // 既に完了 or キャンセル済み
+    // 既に完了 or キャンセル済み or お渡し待ち
     if (!order.isPending) {
+      final IconData icon;
+      final Color iconColor;
+      final String message;
+      if (order.isCompleted) {
+        icon = Icons.check_circle;
+        iconColor = Colors.green;
+        message = 'この注文は精算済みです';
+      } else if (order.isReadyForPickup) {
+        icon = Icons.inventory_2;
+        iconColor = const Color(0xFF2563EB);
+        message = '支払い済み・お渡し待ちです';
+      } else {
+        icon = Icons.cancel;
+        iconColor = Colors.red;
+        message = 'この注文はキャンセル済みです';
+      }
       return Scaffold(
         appBar: AppBar(title: const Text('レジ精算')),
         body: Center(
           child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-            Icon(
-              order.isCompleted ? Icons.check_circle : Icons.cancel,
-              size: 56,
-              color: order.isCompleted ? Colors.green : Colors.red,
-            ),
+            Icon(icon, size: 56, color: iconColor),
             const SizedBox(height: 12),
-            Text(
-              order.isCompleted ? 'この注文は精算済みです' : 'この注文はキャンセル済みです',
-              style: const TextStyle(fontSize: 16),
-            ),
+            Text(message, style: const TextStyle(fontSize: 16)),
             const SizedBox(height: 16),
             FilledButton(
                 onPressed: () => context.go('/orders/status'),

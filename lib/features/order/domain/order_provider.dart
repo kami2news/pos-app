@@ -305,8 +305,8 @@ class OrderListNotifier extends StateNotifier<List<OrderModel>> {
   }
 
   // ── 支払い済み・お渡し待ち（精算＋お渡しモード）──
-  void readyOrderForPickup(String id, PaymentMethod method,
-      {int? receivedAmount}) {
+  Future<void> readyOrderForPickup(String id, PaymentMethod method,
+      {int? receivedAmount}) async {
     state = [
       for (final o in state)
         if (o.id == id)
@@ -319,10 +319,12 @@ class OrderListNotifier extends StateNotifier<List<OrderModel>> {
           o,
     ];
     final methodStr = method == PaymentMethod.cash ? 'cash' : 'card';
-    _api.readyOrder(id, methodStr, receivedAmount).catchError((e) {
+    try {
+      await _api.readyOrder(id, methodStr, receivedAmount);
+    } catch (e) {
       debugPrint('[OrderProvider] readyOrderForPickup error: $e');
-      loadOrders(); // サーバー状態でUIを修正
-    });
+      await loadOrders(); // サーバー状態でUIを修正
+    }
   }
 
   // ── お渡し完了（注文確認画面から利用）──
