@@ -163,6 +163,32 @@ class ApiService {
     await _dio.patch('/api/orders/$orderId/cancel');
   }
 
+  // ─── Discount Rules ──────────────────────────────────────
+  /// GET /api/discount-rules → セット割ルール一覧
+  Future<List<Map<String, dynamic>>> getDiscountRules() async {
+    final res = await _dio.get('/api/discount-rules');
+    return List<Map<String, dynamic>>.from(res.data as List);
+  }
+
+  /// POST /api/discount-rules → ルール作成
+  Future<Map<String, dynamic>> createDiscountRule(
+      Map<String, dynamic> rule) async {
+    final res = await _dio.post('/api/discount-rules', data: rule);
+    return Map<String, dynamic>.from(res.data as Map);
+  }
+
+  /// PATCH /api/discount-rules/:id → ルール更新
+  Future<Map<String, dynamic>> updateDiscountRule(
+      String id, Map<String, dynamic> rule) async {
+    final res = await _dio.patch('/api/discount-rules/$id', data: rule);
+    return Map<String, dynamic>.from(res.data as Map);
+  }
+
+  /// DELETE /api/discount-rules/:id → ルール削除
+  Future<void> deleteDiscountRule(String id) async {
+    await _dio.delete('/api/discount-rules/$id');
+  }
+
   // ─── Public（認証不要・注文者モード） ────────────────────
   /// GET /public/:storeCode/info → {store_name, theme_color, is_open, products}
   Future<Map<String, dynamic>> getPublicStoreInfo(String storeCode) async {

@@ -6,6 +6,7 @@ import '../domain/models/auth_state.dart';
 import '../../../core/network/api_service.dart';
 import '../../products/domain/products_provider.dart';
 import '../../order/domain/order_provider.dart';
+import '../../discount/domain/discount_rules_provider.dart';
 import '../../../version.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
@@ -105,6 +106,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       if (bday != null) {
         await ref.read(orderListProvider.notifier).loadOrders();
       }
+
+      // 7) セット割ルールを読み込み
+      await ref.read(discountRulesProvider.notifier).loadRules();
     } on DioException catch (e) {
       final msg = e.response?.statusCode == 401
           ? '店舗コードまたはパスワードが違います'
