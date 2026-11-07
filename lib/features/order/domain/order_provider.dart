@@ -164,6 +164,14 @@ class OrderListNotifier extends StateNotifier<List<OrderModel>> {
       final data = await _api.getOrders();
       if (data.isEmpty) return;
       _seq = data.length; // 連番を現在の注文数に合わせる
+      // デバッグ：manual_discount_amount をログ出力
+      for (final m in data) {
+        final manual = (m['manual_discount_amount'] as num? ?? 0).toInt();
+        final discount = (m['discount_amount'] as num? ?? 0).toInt();
+        if (discount > 0) {
+          debugPrint('[loadOrders] order=${m['order_number']} discount=$discount manual=$manual');
+        }
+      }
       state = data.map((m) {
         final rawItems = (m['items'] as List? ?? []);
         final items = rawItems.map<OrderItem>((i) => OrderItem(
