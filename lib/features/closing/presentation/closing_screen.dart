@@ -484,7 +484,7 @@ class _ClosingScreenState extends ConsumerState<ClosingScreen> {
                         ]),
                   ),
                 ),
-                const SizedBox(height: 12);
+                const SizedBox(height: 12),
 
                 // ─── 理論締め金・差額 ───
                 Card(
