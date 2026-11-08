@@ -19,18 +19,39 @@ class ClosingScreen extends ConsumerStatefulWidget {
 
 class _ClosingScreenState extends ConsumerState<ClosingScreen> {
   final _cashCtrl = TextEditingController();
+  final _openingCashCtrl = TextEditingController();
   bool _loading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // 開設金をコントローラーに初期値セット（有効な値があれば）
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final stored = ref.read(authStateProvider).openingCash;
+      if (stored != null && stored > 0) {
+        setState(() {
+          _openingCashCtrl.text = stored.toString();
+        });
+      }
+    });
+  }
 
   @override
   void dispose() {
     _cashCtrl.dispose();
+    _openingCashCtrl.dispose();
     super.dispose();
   }
 
   Future<void> _close() async {
     if (_cashCtrl.text.isEmpty) {
       ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('レジ内金を入力してください')));
+          .showSnackBar(const SnackBar(content: Text('実際のレジ内金を入力してください')));
+      return;
+    }
+    if (_openingCashCtrl.text.isEmpty) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('開設金を入力してください')));
       return;
     }
     setState(() => _loading = true);
@@ -172,7 +193,7 @@ class _ClosingScreenState extends ConsumerState<ClosingScreen> {
         .fold(0, (s, o) => s + o.totalAmount);
     final discountSummary = ref.read(discountSummaryProvider);
     final details = ref.read(productSaleDetailsProvider);
-    final openingCash = ref.read(authStateProvider).openingCash ?? 0;
+    final openingCash = int.tryParse(_openingCashCtrl.text) ?? ref.read(authStateProvider).openingCash ?? 0;
     final actualCash = int.tryParse(_cashCtrl.text) ?? 0;
     final theoreticalCash = openingCash + cashSalesTotal;
     final cashDiff = actualCash - theoreticalCash;
@@ -253,7 +274,7 @@ class _ClosingScreenState extends ConsumerState<ClosingScreen> {
     final details = ref.watch(productSaleDetailsProvider);
     final authState = ref.watch(authStateProvider);
     final storeName = authState.storeName ?? '';
-    final openingCash = authState.openingCash ?? 0;
+    final openingCash = int.tryParse(_openingCashCtrl.text) ?? authState.openingCash ?? 0;
     final theoreticalCash = openingCash + cashSalesTotal;
     final actualCash = int.tryParse(_cashCtrl.text) ?? 0;
     final cashDiff = actualCash - theoreticalCash;
@@ -388,6 +409,58 @@ class _ClosingScreenState extends ConsumerState<ClosingScreen> {
                   ),
                 const SizedBox(height: 12),
 
+                // ─── 開設金入力 ───
+                Card(
+                  color: _openingCashCtrl.text.isEmpty
+                      ? Colors.orange.shade50
+                      : null,
+                  child: Padding(
+                    padding: const EdgeInsets.all(20),
+                    child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(children: [
+                            const Text('開設金（開始時のレジ内金）',
+                                style: TextStyle(
+                                    fontSize: 13, fontWeight: FontWeight.w500)),
+                            if (_openingCashCtrl.text.isEmpty) ...[
+                              const SizedBox(width: 6),
+                              const Icon(Icons.warning_amber_rounded,
+                                  color: Colors.orange, size: 18),
+                            ],
+                          ]),
+                          if (_openingCashCtrl.text.isEmpty)
+                            const Padding(
+                              padding: EdgeInsets.only(top: 4),
+                              child: Text('今日の開設時に入力した金額を入力してください',
+                                  style: TextStyle(
+                                      fontSize: 11, color: Colors.orange)),
+                            ),
+                          const SizedBox(height: 12),
+                          TextField(
+                            controller: _openingCashCtrl,
+                            keyboardType: TextInputType.number,
+                            onChanged: (_) => setState(() {}),
+                            decoration: InputDecoration(
+                              labelText: '金額（円）',
+                              prefixText: '¥',
+                              border: const OutlineInputBorder(),
+                              hintText: '例: 50000',
+                              focusedBorder: OutlineInputBorder(
+                                borderSide: BorderSide(
+                                  color: _openingCashCtrl.text.isEmpty
+                                      ? Colors.orange
+                                      : Theme.of(context).colorScheme.primary,
+                                  width: 2,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ]),
+                  ),
+                ),
+                const SizedBox(height: 12),
+
                 // ─── レジ内金入力 ───
                 Card(
                   child: Padding(
@@ -411,7 +484,7 @@ class _ClosingScreenState extends ConsumerState<ClosingScreen> {
                         ]),
                   ),
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 12);
 
                 // ─── 理論締め金・差額 ───
                 Card(
