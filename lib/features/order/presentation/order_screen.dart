@@ -155,6 +155,11 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
             tooltip: '商品管理',
           ),
           IconButton(
+            onPressed: () => context.go('/history'),
+            icon: const Icon(Icons.history, color: Colors.white),
+            tooltip: '営業日履歴',
+          ),
+          IconButton(
             onPressed: () => context.go('/closing'),
             icon: const Icon(Icons.lock, color: Colors.white),
             tooltip: '締め',

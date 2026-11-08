@@ -15,6 +15,7 @@ import '../features/products/presentation/products_screen.dart';
 import '../features/discount/presentation/discount_rules_screen.dart';
 import '../features/customer/presentation/customer_order_screen.dart';
 import '../features/customer/presentation/customer_number_screen.dart';
+import '../features/history/presentation/history_screen.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
   final authState = ref.watch(authStateProvider);
@@ -43,6 +44,7 @@ final routerProvider = Provider<GoRouter>((ref) {
           (location.startsWith('/orders') || location == '/closing')) {
         return '/opening';
       }
+      // /history は営業日の状態に関わらずアクセス可能
       return null;
     },
     routes: [
@@ -51,6 +53,7 @@ final routerProvider = Provider<GoRouter>((ref) {
           path: '/register', builder: (c, s) => const StoreRegisterScreen()),
       GoRoute(path: '/opening', builder: (c, s) => const OpeningScreen()),
       GoRoute(path: '/closing', builder: (c, s) => const ClosingScreen()),
+      GoRoute(path: '/history', builder: (c, s) => const HistoryScreen()),
       GoRoute(path: '/products', builder: (c, s) => const ProductsScreen()),
       GoRoute(
           path: '/discount-rules',

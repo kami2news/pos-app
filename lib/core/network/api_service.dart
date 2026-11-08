@@ -81,6 +81,18 @@ class ApiService {
   }
 
   // ─── Business Days ───────────────────────────────────────────
+  /// GET /api/business-days → 過去の営業日一覧（closed_at降順）
+  Future<List<Map<String, dynamic>>> getBusinessDays() async {
+    final res = await _dio.get('/api/business-days');
+    return List<Map<String, dynamic>>.from(res.data as List);
+  }
+
+  /// GET /api/business-days/:id/orders → 特定営業日の注文一覧
+  Future<List<Map<String, dynamic>>> getBusinessDayOrders(String bdId) async {
+    final res = await _dio.get('/api/business-days/$bdId/orders');
+    return List<Map<String, dynamic>>.from(res.data as List);
+  }
+
   /// POST /api/business-days → {id, store_id, opened_at, is_active}
   Future<Map<String, dynamic>> openBusinessDay() async {
     final res = await _dio.post('/api/business-days');
