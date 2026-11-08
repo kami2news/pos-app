@@ -22,6 +22,9 @@ class AuthState {
   /// nullの場合はデフォルトカラー(ネイビー)を使用
   final int? themeColor;
 
+  /// 開設時のレジ内金（円）
+  final int? openingCash;
+
   const AuthState({
     this.token,
     this.storeId,
@@ -29,6 +32,7 @@ class AuthState {
     this.businessDayStatus,
     this.businessDayId,
     this.themeColor,
+    this.openingCash,
   });
 
   /// 未ログイン状態
@@ -38,7 +42,8 @@ class AuthState {
         storeName = null,
         businessDayStatus = null,
         businessDayId = null,
-        themeColor = null;
+        themeColor = null,
+        openingCash = null;
 
   /// フィールドを部分的に更新して新しいインスタンスを返す
   AuthState copyWith({
@@ -48,6 +53,7 @@ class AuthState {
     String? businessDayStatus,
     String? businessDayId,
     int? themeColor,
+    int? openingCash,
   }) {
     return AuthState(
       token: token ?? this.token,
@@ -56,6 +62,7 @@ class AuthState {
       businessDayStatus: businessDayStatus ?? this.businessDayStatus,
       businessDayId: businessDayId ?? this.businessDayId,
       themeColor: themeColor ?? this.themeColor,
+      openingCash: openingCash ?? this.openingCash,
     );
   }
 
@@ -68,11 +75,12 @@ class AuthState {
           storeName == other.storeName &&
           businessDayStatus == other.businessDayStatus &&
           businessDayId == other.businessDayId &&
-          themeColor == other.themeColor;
+          themeColor == other.themeColor &&
+          openingCash == other.openingCash;
 
   @override
   int get hashCode => Object.hash(
-      token, storeId, storeName, businessDayStatus, businessDayId, themeColor);
+      token, storeId, storeName, businessDayStatus, businessDayId, themeColor, openingCash);
 }
 
 /// 認証状態のProvider

@@ -165,8 +165,15 @@ class _ClosingScreenState extends ConsumerState<ClosingScreen> {
     final orders = ref.read(orderListProvider);
     final completedOrders = orders.where((o) => o.isCompleted).toList();
     final totalAmount = completedOrders.fold(0, (s, o) => s + o.totalAmount);
+    final cashSalesTotal = completedOrders
+        .where((o) => o.paymentMethod == PaymentMethod.cash)
+        .fold(0, (s, o) => s + o.totalAmount);
     final discountSummary = ref.read(discountSummaryProvider);
     final details = ref.read(productSaleDetailsProvider);
+    final openingCash = ref.read(authStateProvider).openingCash ?? 0;
+    final actualCash = int.tryParse(_cashCtrl.text) ?? 0;
+    final theoreticalCash = openingCash + cashSalesTotal;
+    final cashDiff = actualCash - theoreticalCash;
 
     await showDialog(
       context: context,
@@ -175,20 +182,31 @@ class _ClosingScreenState extends ConsumerState<ClosingScreen> {
         title: const Text('締め完了レポート', textAlign: TextAlign.center),
         content: SingleChildScrollView(
           child: Column(mainAxisSize: MainAxisSize.min, children: [
-            _ReportRow('注文件数', '${completedOrders.length}件'),
+            _ReportRow('注文件数', '\${completedOrders.length}件'),
             _ReportRow(
                 '販売総数',
-                '${details.fold(0, (s, d) => s + d.quantity)}点',
+                '\${details.fold(0, (s, d) => s + d.quantity)}点',
                 bold: true),
             if (discountSummary.autoDiscount > 0)
-              _ReportRow('自動割引', '-¥${discountSummary.autoDiscount}',
+              _ReportRow('自動割引', '-¥\${discountSummary.autoDiscount}',
                   color: Colors.orange[700]),
             if (discountSummary.manualDiscount > 0)
-              _ReportRow('手動割引', '-¥${discountSummary.manualDiscount}',
+              _ReportRow('手動割引', '-¥\${discountSummary.manualDiscount}',
                   color: Colors.red),
             const Divider(),
-            _ReportRow('売上合計', '¥$totalAmount', bold: true, fontSize: 20),
-            _ReportRow('レジ内金（締め）', '¥${_cashCtrl.text}'),
+            _ReportRow('売上合計', '¥\$totalAmount', bold: true, fontSize: 20),
+            const Divider(),
+            _ReportRow('開設金', '¥\$openingCash'),
+            _ReportRow('現金売上', '+¥\$cashSalesTotal'),
+            _ReportRow('理論締め金', '¥\$theoreticalCash', bold: true),
+            const Divider(),
+            _ReportRow('実際のレジ内金', '¥\${_cashCtrl.text}'),
+            _ReportRow(
+              cashDiff == 0 ? '差額（一致）' : (cashDiff > 0 ? '差額（過剰）' : '差額（不足）'),
+              cashDiff == 0 ? '±¥0' : (cashDiff > 0 ? '+¥\$cashDiff' : '-¥\${cashDiff.abs()}'),
+              bold: true,
+              color: cashDiff == 0 ? Colors.green : (cashDiff > 0 ? Colors.orange[800] : Colors.red),
+            ),
             const SizedBox(height: 16),
 
             if (details.isNotEmpty) ...[
@@ -226,9 +244,17 @@ class _ClosingScreenState extends ConsumerState<ClosingScreen> {
     final completedOrders = orders.where((o) => o.isCompleted).toList();
     final totalSold = ref.watch(totalSoldProvider);
     final totalAmount = completedOrders.fold(0, (s, o) => s + o.totalAmount);
+    final cashSalesTotal = completedOrders
+        .where((o) => o.paymentMethod == PaymentMethod.cash)
+        .fold(0, (s, o) => s + o.totalAmount);
     final discountSummary = ref.watch(discountSummaryProvider);
     final details = ref.watch(productSaleDetailsProvider);
-    final storeName = ref.watch(authStateProvider).storeName ?? '';
+    final authState = ref.watch(authStateProvider);
+    final storeName = authState.storeName ?? '';
+    final openingCash = authState.openingCash ?? 0;
+    final theoreticalCash = openingCash + cashSalesTotal;
+    final actualCash = int.tryParse(_cashCtrl.text) ?? 0;
+    final cashDiff = actualCash - theoreticalCash;
 
     return Scaffold(
       appBar: AppBar(
@@ -367,19 +393,83 @@ class _ClosingScreenState extends ConsumerState<ClosingScreen> {
                     child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text('レジ内金（締め時）',
+                          const Text('実際のレジ内金（締め時）',
                               style: TextStyle(
                                   fontSize: 13, fontWeight: FontWeight.w500)),
                           const SizedBox(height: 12),
                           TextField(
                             controller: _cashCtrl,
                             keyboardType: TextInputType.number,
+                            onChanged: (_) => setState(() {}),
                             decoration: const InputDecoration(
                                 labelText: '金額（円）',
                                 prefixText: '¥',
                                 border: OutlineInputBorder()),
                           ),
                         ]),
+                  ),
+                ),
+                const SizedBox(height: 12),
+
+                // ─── 理論締め金・差額 ───
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(20),
+                    child: Column(children: [
+                      const Text('レジ過不足チェック',
+                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                      const SizedBox(height: 14),
+                      _ReportRow('開設金', '¥\$openingCash'),
+                      _ReportRow('現金売上', '+¥\$cashSalesTotal'),
+                      const Divider(),
+                      _ReportRow('理論締め金', '¥\$theoreticalCash', bold: true),
+                      if (_cashCtrl.text.isNotEmpty) ...[
+                        const SizedBox(height: 4),
+                        _ReportRow('実際のレジ内金', '¥\${_cashCtrl.text}'),
+                        const Divider(),
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 14),
+                          decoration: BoxDecoration(
+                            color: cashDiff == 0
+                                ? Colors.green.shade50
+                                : (cashDiff > 0 ? Colors.orange.shade50 : Colors.red.shade50),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(
+                              color: cashDiff == 0
+                                  ? Colors.green
+                                  : (cashDiff > 0 ? Colors.orange : Colors.red),
+                            ),
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                cashDiff == 0 ? '差額（一致）' : (cashDiff > 0 ? '差額（過剰）' : '差額（不足）'),
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  color: cashDiff == 0
+                                      ? Colors.green[700]
+                                      : (cashDiff > 0 ? Colors.orange[800] : Colors.red[700]),
+                                ),
+                              ),
+                              Text(
+                                cashDiff == 0
+                                    ? '±¥0'
+                                    : (cashDiff > 0 ? '+¥\$cashDiff' : '-¥\${cashDiff.abs()}'),
+                                style: TextStyle(
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.bold,
+                                  color: cashDiff == 0
+                                      ? Colors.green[700]
+                                      : (cashDiff > 0 ? Colors.orange[800] : Colors.red[700]),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ]),
                   ),
                 ),
                 const SizedBox(height: 20),

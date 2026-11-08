@@ -51,6 +51,7 @@ class _OpeningScreenState extends ConsumerState<OpeningScreen> {
             (s) => s.copyWith(
               businessDayStatus: 'open',
               businessDayId: businessDayId,
+              openingCash: openingCash,
             ),
           );
       // router が自動で /orders にリダイレクト
