@@ -20,6 +20,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
   final _receivedCtrl = TextEditingController();
   bool _processing = false;
   bool _initializing = true; // 画面初期化中フラグ（サーバーから注文を再取得するまでの待機）
+  bool _submitted = false;   // 精算確定後フラグ（loadOrders競合で精算前フォームが再表示されるのを防ぐ）
 
   /// true = 精算＋お渡し管理モード
   /// false = 精算のみモード（デフォルト）
@@ -93,7 +94,13 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
       if (ok != true) return;
     }
 
-    setState(() => _processing = true);
+    // _submitted = true にしてからUIをロック
+    // → in-flight の loadOrders() がサーバーの pending 状態を返しても
+    //   精算前フォームが再表示されるのを防ぐ（race condition 対策）
+    setState(() {
+      _processing = true;
+      _submitted = true;
+    });
 
     if (_withHandover) {
       // 精算＋お渡しモード：支払済み・お渡し待ちへ
@@ -284,6 +291,15 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
   Widget build(BuildContext context) {
     // サーバーからの再取得が完了するまでローディングを表示
     if (_initializing) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('レジ精算')),
+        body: const Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    // 精算確定後は loadOrders() の race condition でフォームが再表示されないようスピナーを表示
+    // （5秒タイマーの in-flight loadOrders() がサーバーの pending 状態を返してもUIに影響させない）
+    if (_submitted) {
       return Scaffold(
         appBar: AppBar(title: const Text('レジ精算')),
         body: const Center(child: CircularProgressIndicator()),
