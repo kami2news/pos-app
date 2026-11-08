@@ -182,28 +182,28 @@ class _ClosingScreenState extends ConsumerState<ClosingScreen> {
         title: const Text('締め完了レポート', textAlign: TextAlign.center),
         content: SingleChildScrollView(
           child: Column(mainAxisSize: MainAxisSize.min, children: [
-            _ReportRow('注文件数', '\${completedOrders.length}件'),
+            _ReportRow('注文件数', '${completedOrders.length}件'),
             _ReportRow(
                 '販売総数',
-                '\${details.fold(0, (s, d) => s + d.quantity)}点',
+                '${details.fold(0, (s, d) => s + d.quantity)}点',
                 bold: true),
             if (discountSummary.autoDiscount > 0)
-              _ReportRow('自動割引', '-¥\${discountSummary.autoDiscount}',
+              _ReportRow('自動割引', '-¥${discountSummary.autoDiscount}',
                   color: Colors.orange[700]),
             if (discountSummary.manualDiscount > 0)
-              _ReportRow('手動割引', '-¥\${discountSummary.manualDiscount}',
+              _ReportRow('手動割引', '-¥${discountSummary.manualDiscount}',
                   color: Colors.red),
             const Divider(),
-            _ReportRow('売上合計', '¥\$totalAmount', bold: true, fontSize: 20),
+            _ReportRow('売上合計', '¥$totalAmount', bold: true, fontSize: 20),
             const Divider(),
-            _ReportRow('開設金', '¥\$openingCash'),
-            _ReportRow('現金売上', '+¥\$cashSalesTotal'),
-            _ReportRow('理論締め金', '¥\$theoreticalCash', bold: true),
+            _ReportRow('開設金', '¥$openingCash'),
+            _ReportRow('現金売上', '+¥$cashSalesTotal'),
+            _ReportRow('理論締め金', '¥$theoreticalCash', bold: true),
             const Divider(),
-            _ReportRow('実際のレジ内金', '¥\${_cashCtrl.text}'),
+            _ReportRow('実際のレジ内金', '¥${_cashCtrl.text}'),
             _ReportRow(
               cashDiff == 0 ? '差額（一致）' : (cashDiff > 0 ? '差額（過剰）' : '差額（不足）'),
-              cashDiff == 0 ? '±¥0' : (cashDiff > 0 ? '+¥\$cashDiff' : '-¥\${cashDiff.abs()}'),
+              cashDiff == 0 ? '±¥0' : (cashDiff > 0 ? '+¥$cashDiff' : '-¥${cashDiff.abs()}'),
               bold: true,
               color: cashDiff == 0 ? Colors.green : (cashDiff > 0 ? Colors.orange[800] : Colors.red),
             ),
@@ -419,13 +419,13 @@ class _ClosingScreenState extends ConsumerState<ClosingScreen> {
                       const Text('レジ過不足チェック',
                           style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
                       const SizedBox(height: 14),
-                      _ReportRow('開設金', '¥\$openingCash'),
-                      _ReportRow('現金売上', '+¥\$cashSalesTotal'),
+                      _ReportRow('開設金', '¥$openingCash'),
+                      _ReportRow('現金売上', '+¥$cashSalesTotal'),
                       const Divider(),
-                      _ReportRow('理論締め金', '¥\$theoreticalCash', bold: true),
+                      _ReportRow('理論締め金', '¥$theoreticalCash', bold: true),
                       if (_cashCtrl.text.isNotEmpty) ...[
                         const SizedBox(height: 4),
-                        _ReportRow('実際のレジ内金', '¥\${_cashCtrl.text}'),
+                        _ReportRow('実際のレジ内金', '¥${_cashCtrl.text}'),
                         const Divider(),
                         Container(
                           width: double.infinity,
@@ -456,7 +456,7 @@ class _ClosingScreenState extends ConsumerState<ClosingScreen> {
                               Text(
                                 cashDiff == 0
                                     ? '±¥0'
-                                    : (cashDiff > 0 ? '+¥\$cashDiff' : '-¥\${cashDiff.abs()}'),
+                                    : (cashDiff > 0 ? '+¥$cashDiff' : '-¥${cashDiff.abs()}'),
                                 style: TextStyle(
                                   fontSize: 20,
                                   fontWeight: FontWeight.bold,
