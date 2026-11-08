@@ -53,6 +53,8 @@ class _ClosingScreenState extends ConsumerState<ClosingScreen> {
     }
     setState(() => _loading = false);
     if (!mounted) return;
+    // 締め完了後、開設金を localStorage から削除
+    try { html.window.localStorage.remove('pos_opening_cash'); } catch (_) {}
     _exportExcel(); // 締め完了後 Excel ダウンロード
     await _showClosingReport();
   }

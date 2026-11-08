@@ -1,3 +1,5 @@
+// ignore: avoid_web_libraries_in_flutter
+import 'dart:html' as html;
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -90,6 +92,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
       // 4) AuthState を確定した状態で1回だけ更新
       //    → ルーターはここで初めてリダイレクトを判断する
+      //    開設金は localStorage から復元（リロード後も維持）
+      int? restoredOpeningCash;
+      if (bday != null) {
+        try {
+          final stored = html.window.localStorage['pos_opening_cash'];
+          restoredOpeningCash = stored != null ? int.tryParse(stored) : null;
+        } catch (_) {}
+      }
       ref.read(authStateProvider.notifier).state = AuthState(
         token: token,
         storeId: storeId,
@@ -97,6 +107,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         businessDayStatus: bday != null ? 'open' : 'closed',
         businessDayId: bday?['id'] as String?,
         themeColor: themeColor,
+        openingCash: restoredOpeningCash,
       );
 
       // 5) 商品一覧（authState のトークンが利用可能になった後）

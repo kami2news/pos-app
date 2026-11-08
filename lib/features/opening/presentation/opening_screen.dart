@@ -1,3 +1,5 @@
+// ignore: avoid_web_libraries_in_flutter
+import 'dart:html' as html;
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -45,6 +47,11 @@ class _OpeningScreenState extends ConsumerState<OpeningScreen> {
 
       // 注文リストをリセット
       ref.read(orderListProvider.notifier).reset();
+
+      // 開設金を localStorage に保存（ページリロード後も復元できるよう）
+      try {
+        html.window.localStorage['pos_opening_cash'] = openingCash.toString();
+      } catch (_) {}
 
       // businessDayStatus を open に更新
       ref.read(authStateProvider.notifier).update(
