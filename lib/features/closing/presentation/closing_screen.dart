@@ -2,7 +2,7 @@ import 'dart:typed_data';
 // ignore: avoid_web_libraries_in_flutter
 import 'dart:html' as html;
 import 'package:dio/dio.dart';
-import 'package:excel/excel.dart';
+import 'package:excel/excel.dart' hide Border;
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
