@@ -5,128 +5,138 @@ import '../../products/domain/models/product.dart';
 import '../../products/domain/products_provider.dart';
 import '../domain/models/discount_rule.dart';
 import '../domain/discount_rules_provider.dart';
+import '../../auth/domain/models/auth_state.dart';
+import '../../../core/theme/km1.dart';
 
 class DiscountRulesScreen extends ConsumerWidget {
   const DiscountRulesScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final c = context.km1;
     final rules = ref.watch(discountRulesProvider);
     final products = ref.watch(productListProvider);
+    final storeColor = ref.watch(authStateProvider.select((s) => s.themeColor));
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('セット割設定'),
-        backgroundColor: const Color(0xFF1456A0),
-        foregroundColor: Colors.white,
+        title: const Text('セット割'),
+        bottom: storeBand(storeColor),
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
+          icon: const Icon(Km1Icons.back),
+          tooltip: '戻る',
           onPressed: () => context.go('/orders'),
         ),
       ),
-      body: rules.isEmpty
-          ? Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Icon(Icons.local_offer_outlined,
-                      size: 64, color: Colors.grey),
-                  const SizedBox(height: 12),
-                  const Text('セット割ルールがまだありません',
-                      style: TextStyle(color: Colors.grey)),
-                  const SizedBox(height: 16),
-                  FilledButton.icon(
-                    onPressed: () => _showRuleDialog(context, ref, products),
-                    icon: const Icon(Icons.add),
-                    label: const Text('最初のルールを追加'),
-                  ),
-                ],
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // 見出し行の右に主な追加操作（FAB は使わない）
+          Padding(
+            padding: const EdgeInsets.fromLTRB(
+                Km1Space.lg, Km1Space.lg, Km1Space.lg, Km1Space.sm),
+            child: Row(children: [
+              Expanded(
+                child: Text('ルール（${rules.length} 件）',
+                    style: Theme.of(context).textTheme.titleSmall),
               ),
-            )
-          : ListView.separated(
-              padding: const EdgeInsets.all(14),
-              itemCount: rules.length,
-              separatorBuilder: (_, __) => const SizedBox(height: 8),
-              itemBuilder: (_, i) {
-                final rule = rules[i];
-                return Card(
-                  child: ListTile(
-                    leading: Switch(
-                      value: rule.isActive,
-                      activeThumbColor: const Color(0xFF1456A0),
-                      onChanged: (_) => ref
-                          .read(discountRulesProvider.notifier)
-                          .toggleActive(rule.id),
-                    ),
-                    // タイトル行：ルール名＋割引バッジ
-                    title: Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            rule.name,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              fontWeight: FontWeight.w600,
-                              color: rule.isActive ? null : Colors.grey,
+              FilledButton.icon(
+                onPressed: () => _showRuleDialog(context, ref, products),
+                icon: const Icon(Km1Icons.add, size: Km1Size.iconMd),
+                label: const Text('ルールを追加'),
+              ),
+            ]),
+          ),
+          Expanded(
+            child: rules.isEmpty
+                ? const Km1Empty(
+                    icon: Km1Icons.discount,
+                    title: 'セット割のルールがまだありません',
+                    body: '「ルールを追加」から、組み合わせ・数量・金額の条件で割引を作れます。',
+                  )
+                : ListView.separated(
+                    padding: const EdgeInsets.fromLTRB(
+                        Km1Space.lg, Km1Space.sm, Km1Space.lg, Km1Space.lg),
+                    itemCount: rules.length,
+                    separatorBuilder: (_, __) =>
+                        const SizedBox(height: Km1Space.sm),
+                    itemBuilder: (_, i) {
+                      final rule = rules[i];
+                      final ink = rule.isActive ? c.ink : c.inkTertiary;
+                      return Container(
+                        decoration: km1CardDecoration(context),
+                        padding: const EdgeInsets.fromLTRB(
+                            Km1Space.sm, Km1Space.sm, Km1Space.xs, Km1Space.sm),
+                        child: Row(children: [
+                          Switch(
+                            value: rule.isActive,
+                            onChanged: (_) => ref
+                                .read(discountRulesProvider.notifier)
+                                .toggleActive(rule.id),
+                          ),
+                          const SizedBox(width: Km1Space.sm),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Row(children: [
+                                  Flexible(
+                                    child: Text(rule.name,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: Km1Text.body1Strong
+                                            .copyWith(color: ink)),
+                                  ),
+                                  const SizedBox(width: Km1Space.sm),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: Km1Space.smNudge),
+                                    decoration: BoxDecoration(
+                                      color: rule.isActive
+                                          ? c.successTint
+                                          : c.surfaceMuted,
+                                      border: Border.all(
+                                          color: rule.isActive
+                                              ? c.successInk
+                                              : c.stroke),
+                                      borderRadius:
+                                          BorderRadius.circular(Km1Radius.md),
+                                    ),
+                                    child: Text(_discountLabel(rule),
+                                        style: Km1Text.caption1
+                                            .copyWith(color: ink)),
+                                  ),
+                                ]),
+                                const SizedBox(height: Km1Space.xxs),
+                                Text(
+                                  '${rule.isActive ? '有効' : '無効'}　${_conditionLabel(rule, products)}',
+                                  style: Km1Text.caption1
+                                      .copyWith(color: c.inkSecondary),
+                                  overflow: TextOverflow.ellipsis,
+                                  maxLines: 2,
+                                ),
+                              ],
                             ),
                           ),
-                        ),
-                        const SizedBox(width: 6),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 7, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: rule.isActive
-                                ? const Color(0xFFE1F5EE)
-                                : const Color(0xFFF0F0F0),
-                            borderRadius: BorderRadius.circular(99),
+                          IconButton(
+                            icon: const Icon(Km1Icons.edit),
+                            tooltip: '「${rule.name}」を編集',
+                            onPressed: () => _showRuleDialog(
+                                context, ref, products,
+                                existing: rule),
                           ),
-                          child: Text(
-                            _discountLabel(rule),
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w600,
-                              color: rule.isActive
-                                  ? const Color(0xFF085041)
-                                  : Colors.grey,
-                            ),
+                          IconButton(
+                            icon: Icon(Km1Icons.delete, color: c.dangerInk),
+                            tooltip: '「${rule.name}」を削除',
+                            onPressed: () =>
+                                _confirmDelete(context, ref, rule),
                           ),
-                        ),
-                      ],
-                    ),
-                    subtitle: Text(
-                      _conditionLabel(rule, products),
-                      style: const TextStyle(fontSize: 12),
-                      overflow: TextOverflow.ellipsis,
-                      maxLines: 2,
-                    ),
-                    // trailing：編集・削除アイコンのみ
-                    trailing: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        IconButton(
-                          icon: const Icon(Icons.edit, size: 20),
-                          onPressed: () => _showRuleDialog(
-                              context, ref, products,
-                              existing: rule),
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.delete,
-                              size: 20, color: Colors.red),
-                          onPressed: () => _confirmDelete(context, ref, rule),
-                        ),
-                      ],
-                    ),
+                        ]),
+                      );
+                    },
                   ),
-                );
-              },
-            ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _showRuleDialog(context, ref, products),
-        icon: const Icon(Icons.add),
-        label: const Text('ルールを追加'),
-        backgroundColor: const Color(0xFF1456A0),
-        foregroundColor: Colors.white,
+          ),
+        ],
       ),
     );
   }
@@ -142,10 +152,10 @@ class DiscountRulesScreen extends ConsumerWidget {
                     .firstOrNull ??
                 id)
             .join(' ＋ ');
-        return '組み合わせ: $names';
+        return '組み合わせ：$names';
       case ConditionType.quantityThreshold:
         if (rule.targetProductIds.isEmpty) {
-          return '合計${rule.minQuantity}個以上購入';
+          return '合計 ${rule.minQuantity} 個以上';
         }
         final names = rule.targetProductIds
             .map((id) =>
@@ -155,32 +165,32 @@ class DiscountRulesScreen extends ConsumerWidget {
                     .firstOrNull ??
                 id)
             .join('・');
-        return '$names を${rule.minQuantity}個以上';
+        return '$names を ${rule.minQuantity} 個以上';
       case ConditionType.amountThreshold:
-        return '合計¥${rule.minAmount}以上で';
+        return '合計 ¥${rule.minAmount} 以上';
     }
   }
 
   String _discountLabel(DiscountRule rule) {
     if (rule.discountType == DiscountType.percentage) {
-      return '${rule.discountValue}% OFF';
+      return '${rule.discountValue}% 引き';
     }
-    return '¥${rule.discountValue} OFF';
+    return '¥${rule.discountValue} 引き';
   }
 
   void _confirmDelete(BuildContext context, WidgetRef ref, DiscountRule rule) {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('削除の確認'),
-        content: Text('「${rule.name}」を削除しますか？'),
+        title: Text('「${rule.name}」を削除しますか'),
+        content: const Text('削除したルールは元に戻せません。一時的に止めたいときは、スイッチで無効にできます。'),
         actions: [
-          TextButton(
+          OutlinedButton(
             onPressed: () => Navigator.of(ctx).pop(),
             child: const Text('キャンセル'),
           ),
           FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            style: km1DangerButton(ctx),
             onPressed: () {
               ref.read(discountRulesProvider.notifier).remove(rule.id);
               Navigator.of(ctx).pop();
@@ -274,29 +284,27 @@ class _RuleDialogState extends State<_RuleDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final c = context.km1;
+    final sectionStyle = Km1Text.body1Strong.copyWith(color: c.ink);
     return AlertDialog(
       title: Text(widget.existing == null ? 'ルールを追加' : 'ルールを編集'),
       scrollable: true,
       content: SizedBox(
-        width: 400,
+        width: Km1Size.dialogWidth,
         child: Column(
           mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             // ── ルール名 ──
-            TextField(
-              controller: _nameCtrl,
-              decoration: const InputDecoration(
-                labelText: 'ルール名',
-                border: OutlineInputBorder(),
-              ),
+            Km1Field(
+              label: 'ルール名',
+              child: TextField(controller: _nameCtrl),
             ),
-            const SizedBox(height: 18),
+            const SizedBox(height: Km1Space.xxl),
 
             // ── 条件種別 ──
-            const Text('条件の種類',
-                style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
-            const SizedBox(height: 8),
+            Text('条件の種類', style: sectionStyle),
+            const SizedBox(height: Km1Space.xs),
             RadioGroup<ConditionType>(
               groupValue: _condType,
               onChanged: (v) => setState(() => _condType = v!),
@@ -307,31 +315,29 @@ class _RuleDialogState extends State<_RuleDialog> {
                         dense: true,
                         contentPadding: EdgeInsets.zero,
                         title: Text(_condTypeName(t),
-                            style: const TextStyle(fontSize: 13)),
+                            style: Km1Text.body1.copyWith(color: c.ink)),
                         value: t,
                       ),
                     )
                     .toList(),
               ),
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: Km1Space.sm),
 
             // ── 条件の詳細（種別ごとに変化） ──
             _buildConditionDetail(),
-            const SizedBox(height: 18),
+            const SizedBox(height: Km1Space.xxl),
 
             // ── 割引種別・金額 ──
-            const Text('割引の内容',
-                style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
-            const SizedBox(height: 8),
-            Row(children: [
+            Text('割引の内容', style: sectionStyle),
+            const SizedBox(height: Km1Space.sm),
+            Wrap(spacing: Km1Space.sm, children: [
               ChoiceChip(
                 label: const Text('金額（円）'),
                 selected: _discType == DiscountType.fixedAmount,
                 onSelected: (_) =>
                     setState(() => _discType = DiscountType.fixedAmount),
               ),
-              const SizedBox(width: 8),
               ChoiceChip(
                 label: const Text('割合（%）'),
                 selected: _discType == DiscountType.percentage,
@@ -339,24 +345,28 @@ class _RuleDialogState extends State<_RuleDialog> {
                     setState(() => _discType = DiscountType.percentage),
               ),
             ]),
-            const SizedBox(height: 10),
-            TextField(
-              controller: _valueCtrl,
-              keyboardType: TextInputType.number,
-              decoration: InputDecoration(
-                labelText: _discType == DiscountType.percentage
-                    ? '割引率（例: 10）'
-                    : '割引額（例: 200）',
-                prefixText: _discType == DiscountType.fixedAmount ? '¥' : null,
-                suffixText: _discType == DiscountType.percentage ? '%' : null,
-                border: const OutlineInputBorder(),
+            const SizedBox(height: Km1Space.md),
+            Km1Field(
+              label: _discType == DiscountType.percentage ? '割引率（%）' : '割引額（円）',
+              child: TextField(
+                controller: _valueCtrl,
+                keyboardType: TextInputType.number,
+                textAlign: TextAlign.end,
+                decoration: InputDecoration(
+                  hintText:
+                      _discType == DiscountType.percentage ? '10' : '200',
+                  prefixText:
+                      _discType == DiscountType.fixedAmount ? '¥ ' : null,
+                  suffixText:
+                      _discType == DiscountType.percentage ? '%' : null,
+                ),
               ),
             ),
           ],
         ),
       ),
       actions: [
-        TextButton(
+        OutlinedButton(
           onPressed: () => Navigator.of(context).pop(),
           child: const Text('キャンセル'),
         ),
@@ -369,76 +379,76 @@ class _RuleDialogState extends State<_RuleDialog> {
   }
 
   Widget _buildConditionDetail() {
+    final c = context.km1;
     switch (_condType) {
       // ── 商品コンビ ──
       case ConditionType.productCombo:
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text('組み合わせる商品を2つ以上選択',
-                style: TextStyle(fontSize: 12, color: Colors.grey)),
-            const SizedBox(height: 6),
-            ConstrainedBox(
-              constraints: const BoxConstraints(maxHeight: 200),
-              child: Container(
-                decoration: BoxDecoration(
-                  border: Border.all(color: Colors.grey.shade300),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: SingleChildScrollView(
-                  child: Column(
-                    children: widget.products
-                        .map(
-                          (p) => CheckboxListTile(
-                            dense: true,
-                            controlAffinity: ListTileControlAffinity.leading,
-                            title: Text(
-                              '${p.name}  ¥${p.price}',
-                              style: const TextStyle(fontSize: 13),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            value: _selectedProductIds.contains(p.id),
-                            onChanged: (v) => setState(() {
-                              if (v == true) {
-                                _selectedProductIds.add(p.id);
-                              } else {
-                                _selectedProductIds.remove(p.id);
-                              }
-                            }),
+        return Km1Field(
+          label: '組み合わせる商品（2 つ以上）',
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxHeight: 220),
+            child: Container(
+              decoration: BoxDecoration(
+                border: Border.all(color: c.strokeStrong),
+                borderRadius: BorderRadius.circular(Km1Radius.md),
+              ),
+              child: SingleChildScrollView(
+                child: Column(
+                  children: widget.products
+                      .map(
+                        (p) => CheckboxListTile(
+                          dense: true,
+                          controlAffinity: ListTileControlAffinity.leading,
+                          title: Text(
+                            '${p.name}　¥${p.price}',
+                            style: Km1Text.body1.copyWith(color: c.ink),
+                            overflow: TextOverflow.ellipsis,
                           ),
-                        )
-                        .toList(),
-                  ),
+                          value: _selectedProductIds.contains(p.id),
+                          onChanged: (v) => setState(() {
+                            if (v == true) {
+                              _selectedProductIds.add(p.id);
+                            } else {
+                              _selectedProductIds.remove(p.id);
+                            }
+                          }),
+                        ),
+                      )
+                      .toList(),
                 ),
               ),
             ),
-          ],
+          ),
         );
 
       // ── 数量割引 ──
       case ConditionType.quantityThreshold:
         return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            DropdownButtonFormField<String?>(
-              initialValue: _qtyTargetId,
-              decoration: const InputDecoration(
-                  labelText: '対象商品', border: OutlineInputBorder()),
-              items: [
-                const DropdownMenuItem(value: null, child: Text('全商品（合計）')),
-                ...widget.products.map(
-                    (p) => DropdownMenuItem(value: p.id, child: Text(p.name))),
-              ],
-              onChanged: (v) => setState(() => _qtyTargetId = v),
+            Km1Field(
+              label: '対象の商品',
+              child: DropdownButtonFormField<String?>(
+                initialValue: _qtyTargetId,
+                items: [
+                  const DropdownMenuItem(value: null, child: Text('全商品（合計）')),
+                  ...widget.products.map((p) =>
+                      DropdownMenuItem(value: p.id, child: Text(p.name))),
+                ],
+                onChanged: (v) => setState(() => _qtyTargetId = v),
+              ),
             ),
-            const SizedBox(height: 10),
-            TextField(
-              controller: _qtyCtrl,
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(
-                labelText: '最低個数（例: 3）',
-                suffixText: '個以上',
-                border: OutlineInputBorder(),
+            const SizedBox(height: Km1Space.lg),
+            Km1Field(
+              label: '最低の個数',
+              child: TextField(
+                controller: _qtyCtrl,
+                keyboardType: TextInputType.number,
+                textAlign: TextAlign.end,
+                decoration: const InputDecoration(
+                  hintText: '3',
+                  suffixText: '個以上',
+                ),
               ),
             ),
           ],
@@ -446,14 +456,17 @@ class _RuleDialogState extends State<_RuleDialog> {
 
       // ── 金額割引 ──
       case ConditionType.amountThreshold:
-        return TextField(
-          controller: _amountCtrl,
-          keyboardType: TextInputType.number,
-          decoration: const InputDecoration(
-            labelText: '最低合計金額（例: 1000）',
-            prefixText: '¥',
-            suffixText: '以上',
-            border: OutlineInputBorder(),
+        return Km1Field(
+          label: '最低の合計金額（円）',
+          child: TextField(
+            controller: _amountCtrl,
+            keyboardType: TextInputType.number,
+            textAlign: TextAlign.end,
+            decoration: const InputDecoration(
+              hintText: '1000',
+              prefixText: '¥ ',
+              suffixText: '以上',
+            ),
           ),
         );
     }
@@ -464,21 +477,25 @@ class _RuleDialogState extends State<_RuleDialog> {
       case ConditionType.productCombo:
         return '商品の組み合わせ（A＋Bセット）';
       case ConditionType.quantityThreshold:
-        return '数量割引（N個以上で割引）';
+        return '数量割引（N 個以上で割引）';
       case ConditionType.amountThreshold:
-        return '金額割引（○円以上で割引）';
+        return '金額割引（○ 円以上で割引）';
     }
   }
 
   void _save() {
     final name = _nameCtrl.text.trim();
     final value = int.tryParse(_valueCtrl.text);
-    if (name.isEmpty || value == null || value <= 0) return;
+    if (name.isEmpty || value == null || value <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('ルール名と割引の値（1 以上）を入力してください。')));
+      return;
+    }
 
     if (_condType == ConditionType.productCombo &&
         _selectedProductIds.length < 2) {
       ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('商品を2つ以上選択してください')));
+          .showSnackBar(const SnackBar(content: Text('組み合わせる商品を 2 つ以上選んでください。')));
       return;
     }
 

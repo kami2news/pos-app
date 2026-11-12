@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/network/api_service.dart';
+import '../../../core/theme/km1.dart';
 
 /// 注文者モード：整理番号ページ
 /// 注文確定後 → /customer/:storeCode/number/:orderId
@@ -25,10 +26,6 @@ class _CustomerNumberScreenState extends State<CustomerNumberScreen> {
   String? _error;
   Map<String, dynamic>? _order;
   Timer? _timer;
-
-  // テーマカラーは注文画面から GoRouter extras で渡せないため、
-  // ここではデフォルト値を使い、必要に応じて拡張する
-  final Color _themeColor = const Color(0xFF1456A0);
 
   @override
   void initState() {
@@ -61,37 +58,27 @@ class _CustomerNumberScreenState extends State<CustomerNumberScreen> {
       if (!mounted) return;
       setState(() {
         _loading = false;
-        _error ??= 'ステータス取得中...';
+        _error ??= '状態を確認しています';
       });
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    return Theme(
-      data: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: _themeColor),
-        useMaterial3: true,
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('整理番号'),
+        automaticallyImplyLeading: false,
+        actions: [
+          Km1BarAction(
+            icon: Km1Icons.back,
+            label: '注文画面に戻る',
+            onPressed: () => context.go('/customer/${widget.storeCode}'),
+          ),
+          const SizedBox(width: Km1Space.xs),
+        ],
       ),
-      child: Scaffold(
-        appBar: AppBar(
-          backgroundColor: _themeColor,
-          foregroundColor: Colors.white,
-          title: const Text('整理番号'),
-          automaticallyImplyLeading: false,
-          elevation: 0,
-          actions: [
-            TextButton.icon(
-              onPressed: () =>
-                  context.go('/customer/${widget.storeCode}'),
-              icon: const Icon(Icons.arrow_back, color: Colors.white, size: 18),
-              label: const Text('注文に戻る',
-                  style: TextStyle(color: Colors.white, fontSize: 13)),
-            ),
-          ],
-        ),
-        body: _buildBody(),
-      ),
+      body: _buildBody(),
     );
   }
 
@@ -100,24 +87,17 @@ class _CustomerNumberScreenState extends State<CustomerNumberScreen> {
       return const Center(child: CircularProgressIndicator());
     }
     if (_order == null) {
-      return Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.wifi_off, size: 64, color: Colors.grey.shade400),
-            const SizedBox(height: 16),
-            Text('注文情報を取得できませんでした',
-                style: TextStyle(fontSize: 16, color: Colors.grey.shade600)),
-            const SizedBox(height: 24),
-            FilledButton.icon(
-              onPressed: () {
-                setState(() => _loading = true);
-                _fetchOrder();
-              },
-              icon: const Icon(Icons.refresh),
-              label: const Text('再試行'),
-            ),
-          ],
+      return Km1Empty(
+        icon: Km1Icons.offline,
+        title: '注文の情報を取得できませんでした',
+        body: '通信状態を確認して、もう一度お試しください。',
+        action: FilledButton.icon(
+          onPressed: () {
+            setState(() => _loading = true);
+            _fetchOrder();
+          },
+          icon: const Icon(Km1Icons.refresh, size: Km1Size.iconMd),
+          label: const Text('もう一度読み込む'),
         ),
       );
     }
@@ -129,24 +109,28 @@ class _CustomerNumberScreenState extends State<CustomerNumberScreen> {
         List<Map<String, dynamic>>.from(order['items'] as List? ?? []);
     final totalAmount = order['total_amount'] as int? ?? 0;
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          // ── 整理番号カード ──
-          _NumberCard(
-              orderNumber: orderNumber, themeColor: _themeColor),
-          const SizedBox(height: 20),
+    return Align(
+      alignment: Alignment.topCenter,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: Km1Size.dialogWidth),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(Km1Space.lg),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // ── 整理番号 ──
+              _NumberCard(orderNumber: orderNumber),
+              const SizedBox(height: Km1Space.lg),
 
-          // ── ステータスカード ──
-          _StatusCard(status: status),
-          const SizedBox(height: 20),
+              // ── 状態 ──
+              _StatusCard(status: status),
+              const SizedBox(height: Km1Space.lg),
 
-          // ── 注文内容 ──
-          _OrderItemsCard(
-              items: items, totalAmount: totalAmount, themeColor: _themeColor),
-        ],
+              // ── 注文内容 ──
+              _OrderItemsCard(items: items, totalAmount: totalAmount),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -155,253 +139,158 @@ class _CustomerNumberScreenState extends State<CustomerNumberScreen> {
 // ─── 整理番号カード ───────────────────────────────────────────
 class _NumberCard extends StatelessWidget {
   final String orderNumber;
-  final Color themeColor;
 
-  const _NumberCard({required this.orderNumber, required this.themeColor});
+  const _NumberCard({required this.orderNumber});
 
   @override
   Widget build(BuildContext context) {
+    final c = context.km1;
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 32, horizontal: 24),
-      decoration: BoxDecoration(
-        color: themeColor,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: themeColor.withOpacity(0.35),
-            blurRadius: 16,
-            offset: const Offset(0, 6),
-          ),
-        ],
-      ),
+      decoration: km1CardDecoration(context),
+      padding: const EdgeInsets.symmetric(
+          vertical: Km1Space.xxl, horizontal: Km1Space.xxl),
       child: Column(
         children: [
-          const Text(
-            '整理番号',
-            style: TextStyle(
-                fontSize: 16,
-                color: Colors.white70,
-                fontWeight: FontWeight.w500,
-                letterSpacing: 1),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            orderNumber,
-            style: const TextStyle(
-              fontSize: 80,
-              color: Colors.white,
-              fontWeight: FontWeight.bold,
-              height: 1.0,
-            ),
-          ),
+          Text('整理番号',
+              style: Km1Text.subtitle2.copyWith(color: c.inkSecondary)),
+          Text(orderNumber,
+              style: Km1Text.display.copyWith(color: c.brandInk)),
+          Text('この番号でお呼びします',
+              style: Km1Text.body1.copyWith(color: c.inkSecondary)),
         ],
       ),
     );
   }
 }
 
-// ─── ステータスカード ─────────────────────────────────────────
+// ─── 状態カード（色 + アイコン + 文言） ──────────────────────
 class _StatusCard extends StatelessWidget {
   final String status;
   const _StatusCard({required this.status});
 
   @override
   Widget build(BuildContext context) {
-    final config = _statusConfig(status);
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 24),
-      decoration: BoxDecoration(
-        color: config.bgColor,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: config.borderColor, width: 1.5),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(config.icon, color: config.iconColor, size: 32),
-          const SizedBox(width: 14),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                config.label,
-                style: TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.bold,
-                  color: config.textColor,
-                ),
+    final c = context.km1;
+    final (Color ink, Color tint, IconData icon, String label, String body) =
+        switch (status) {
+      'pending' => (
+          c.warningInk,
+          c.warningTint,
+          Km1Icons.waiting,
+          '準備しています',
+          '店舗のスタッフが準備しています。番号をお呼びするまでお待ちください。'
+        ),
+      'readyForPickup' => (
+          c.successInk,
+          c.successTint,
+          Km1Icons.notify,
+          'お呼び出し中です',
+          '受け取りカウンターにお越しください。'
+        ),
+      'completed' => (
+          c.inkTertiary,
+          c.surfaceMuted,
+          Km1Icons.checkCircle,
+          'お渡ししました',
+          'ありがとうございました。'
+        ),
+      'cancelled' => (
+          c.dangerInk,
+          c.dangerTint,
+          Km1Icons.dismissCircle,
+          'この注文は取り消されました',
+          '店舗のスタッフにお問い合わせください。'
+        ),
+      _ => (
+          c.inkTertiary,
+          c.surfaceMuted,
+          Km1Icons.sync,
+          '確認しています',
+          '注文の状態を取得しています。'
+        ),
+    };
+    return Semantics(
+      liveRegion: true,
+      child: Container(
+        padding: const EdgeInsets.all(Km1Space.lg),
+        decoration: BoxDecoration(
+          color: tint,
+          borderRadius: BorderRadius.circular(Km1Radius.lg),
+          border: Border.all(color: ink),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, color: ink, size: Km1Size.iconLg),
+            const SizedBox(width: Km1Space.md),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(label,
+                      style: Km1Text.subtitle1.copyWith(color: c.ink)),
+                  const SizedBox(height: Km1Space.xxs),
+                  Text(body, style: Km1Text.body1.copyWith(color: c.ink)),
+                ],
               ),
-              const SizedBox(height: 2),
-              Text(
-                config.description,
-                style: TextStyle(
-                    fontSize: 13, color: config.textColor.withOpacity(0.75)),
-              ),
-            ],
-          ),
-        ],
+            ),
+          ],
+        ),
       ),
     );
   }
-
-  _StatusConfig _statusConfig(String status) {
-    switch (status) {
-      case 'pending':
-        return _StatusConfig(
-          label: '準備中',
-          description: '店舗スタッフが準備しています',
-          icon: Icons.hourglass_top_rounded,
-          bgColor: const Color(0xFFFFF3E0),
-          borderColor: const Color(0xFFFFB74D),
-          iconColor: const Color(0xFFF57C00),
-          textColor: const Color(0xFFE65100),
-        );
-      case 'readyForPickup':
-        return _StatusConfig(
-          label: 'お呼び出し中',
-          description: '受取カウンターにお越しください！',
-          icon: Icons.notifications_active_rounded,
-          bgColor: const Color(0xFFE8F5E9),
-          borderColor: const Color(0xFF66BB6A),
-          iconColor: const Color(0xFF388E3C),
-          textColor: const Color(0xFF1B5E20),
-        );
-      case 'completed':
-        return _StatusConfig(
-          label: 'お渡し済み',
-          description: 'ありがとうございました！',
-          icon: Icons.check_circle_rounded,
-          bgColor: const Color(0xFFF5F5F5),
-          borderColor: const Color(0xFFBDBDBD),
-          iconColor: const Color(0xFF757575),
-          textColor: const Color(0xFF424242),
-        );
-      case 'cancelled':
-        return _StatusConfig(
-          label: 'キャンセル',
-          description: '店舗スタッフにお問い合わせください',
-          icon: Icons.cancel_rounded,
-          bgColor: const Color(0xFFFFEBEE),
-          borderColor: const Color(0xFFEF9A9A),
-          iconColor: const Color(0xFFC62828),
-          textColor: const Color(0xFFB71C1C),
-        );
-      default:
-        return _StatusConfig(
-          label: '確認中',
-          description: 'ステータスを取得しています...',
-          icon: Icons.sync_rounded,
-          bgColor: const Color(0xFFF5F5F5),
-          borderColor: const Color(0xFFBDBDBD),
-          iconColor: const Color(0xFF757575),
-          textColor: const Color(0xFF616161),
-        );
-    }
-  }
-}
-
-class _StatusConfig {
-  final String label;
-  final String description;
-  final IconData icon;
-  final Color bgColor;
-  final Color borderColor;
-  final Color iconColor;
-  final Color textColor;
-
-  const _StatusConfig({
-    required this.label,
-    required this.description,
-    required this.icon,
-    required this.bgColor,
-    required this.borderColor,
-    required this.iconColor,
-    required this.textColor,
-  });
 }
 
 // ─── 注文内容カード ──────────────────────────────────────────
 class _OrderItemsCard extends StatelessWidget {
   final List<Map<String, dynamic>> items;
   final int totalAmount;
-  final Color themeColor;
 
   const _OrderItemsCard({
     required this.items,
     required this.totalAmount,
-    required this.themeColor,
   });
 
   @override
   Widget build(BuildContext context) {
+    final c = context.km1;
+    const tabular = [FontFeature.tabularFigures()];
     return Container(
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surfaceContainerLow,
-        borderRadius: BorderRadius.circular(16),
-      ),
+      decoration: km1CardDecoration(context),
+      padding: const EdgeInsets.all(Km1Space.lg),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 14, 16, 8),
-            child: Text(
-              '注文内容',
-              style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.grey.shade600),
-            ),
-          ),
-          ...items.asMap().entries.map((entry) {
-            final i = entry.key;
-            final item = entry.value;
-            final isLast = i == items.length - 1;
-            return Column(
-              children: [
-                Padding(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          item['product_name'] as String? ?? '',
-                          style: const TextStyle(
-                              fontSize: 16, fontWeight: FontWeight.w500),
-                        ),
-                      ),
-                      Text('× ${item['quantity']}',
-                          style: TextStyle(
-                              fontSize: 15, color: Colors.grey.shade600)),
-                      const SizedBox(width: 10),
-                      Text(
-                          '¥${(item['unit_price'] as int? ?? 0) * (item['quantity'] as int? ?? 1)}',
-                          style: const TextStyle(
-                              fontSize: 16, fontWeight: FontWeight.w500)),
-                    ],
-                  ),
+          Text('注文内容', style: Km1Text.subtitle2.copyWith(color: c.ink)),
+          const SizedBox(height: Km1Space.sm),
+          ...items.map((item) => Padding(
+                padding: const EdgeInsets.symmetric(vertical: Km1Space.xs),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(item['product_name'] as String? ?? '',
+                          style: Km1Text.body2.copyWith(color: c.ink)),
+                    ),
+                    Text('× ${item['quantity']}',
+                        style: Km1Text.body2.copyWith(color: c.inkSecondary)),
+                    const SizedBox(width: Km1Space.md),
+                    Text(
+                        '¥${(item['unit_price'] as int? ?? 0) * (item['quantity'] as int? ?? 1)}',
+                        style: Km1Text.body2
+                            .copyWith(color: c.ink, fontFeatures: tabular)),
+                  ],
                 ),
-                if (!isLast)
-                  const Divider(height: 1, indent: 16, endIndent: 16),
-              ],
-            );
-          }),
-          const Divider(height: 1),
-          Padding(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-            child: Row(
-              children: [
-                const Expanded(
-                    child: Text('合計',
-                        style: TextStyle(
-                            fontSize: 16, fontWeight: FontWeight.bold))),
-                Text('¥$totalAmount',
-                    style: const TextStyle(
-                        fontSize: 22, fontWeight: FontWeight.bold)),
-              ],
-            ),
+              )),
+          Divider(height: Km1Space.lg, color: c.strokeSubtle),
+          Row(
+            children: [
+              Expanded(
+                  child: Text('合計',
+                      style: Km1Text.subtitle2.copyWith(color: c.ink))),
+              Text('¥$totalAmount',
+                  style: Km1Text.title3
+                      .copyWith(color: c.ink, fontFeatures: tabular)),
+            ],
           ),
         ],
       ),

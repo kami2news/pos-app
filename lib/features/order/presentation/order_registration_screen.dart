@@ -4,6 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../auth/domain/models/auth_state.dart';
 import '../../products/domain/products_provider.dart';
 import '../domain/order_provider.dart';
+import '../../../core/theme/km1.dart';
+import 'widgets/product_tile.dart';
 
 /// 注文受付画面（お客様操作 / セルフオーダー）
 /// ─ お客様が商品を選んで「注文する」ボタンを押すと pending 注文が作られる
@@ -14,20 +16,23 @@ class OrderRegistrationScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final c = context.km1;
     final products = ref.watch(productListProvider);
     final cartItems = ref.watch(currentOrderProvider);
     final autoResult = ref.watch(autoDiscountProvider);
-    final storeName = ref.watch(authStateProvider).storeName ?? '';
+    final auth = ref.watch(authStateProvider);
+    final storeName = auth.storeName ?? '';
     final subtotal = ref.read(currentOrderProvider.notifier).subtotal;
     final totalDiscount = autoResult.totalDiscount.clamp(0, subtotal);
     final finalTotal = max(0, subtotal - totalDiscount);
-    final colorScheme = Theme.of(context).colorScheme;
+    const tabular = [FontFeature.tabularFigures()];
 
     return Scaffold(
       // ─── お客様向けのシンプルなヘッダー ───
       appBar: AppBar(
         title: Text(storeName.isNotEmpty ? storeName : 'ご注文'),
         automaticallyImplyLeading: false, // 戻るボタン非表示
+        bottom: storeBand(auth.themeColor),
       ),
 
       body: Column(
@@ -36,23 +41,22 @@ class OrderRegistrationScreen extends ConsumerWidget {
           if (autoResult.applied.isNotEmpty)
             Container(
               width: double.infinity,
-              color: const Color(0xFFE6F4ED),
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              color: c.successTint,
+              padding: const EdgeInsets.symmetric(
+                  horizontal: Km1Space.lg, vertical: Km1Space.sm),
               child: Wrap(
-                spacing: 8,
-                runSpacing: 4,
-                children: autoResult.applied
-                    .map((a) => Chip(
-                          avatar: const Icon(Icons.local_offer,
-                              size: 14, color: Color(0xFF085041)),
-                          label: Text('${a.rule.name}  -¥${a.amount}',
-                              style: const TextStyle(
-                                  fontSize: 12, color: Color(0xFF085041))),
-                          backgroundColor: const Color(0xFFC8EDD9),
-                          padding: EdgeInsets.zero,
-                          visualDensity: VisualDensity.compact,
-                        ))
-                    .toList(),
+                spacing: Km1Space.sm,
+                runSpacing: Km1Space.xs,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  Icon(Km1Icons.discount,
+                      size: Km1Size.iconSm, color: c.successInk),
+                  Text('セット割が適用されています',
+                      style: Km1Text.body1Strong.copyWith(color: c.ink)),
+                  ...autoResult.applied.map((a) => Text(
+                      '${a.rule.name} -¥${a.amount}',
+                      style: Km1Text.body1.copyWith(color: c.ink))),
+                ],
               ),
             ),
 
@@ -60,109 +64,57 @@ class OrderRegistrationScreen extends ConsumerWidget {
           Expanded(
             flex: 3,
             child: products.isEmpty
-                ? const Center(
-                    child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.storefront_outlined,
-                          size: 64, color: Colors.grey),
-                      SizedBox(height: 12),
-                      Text('ただいま商品を準備中です',
-                          style: TextStyle(color: Colors.grey, fontSize: 16)),
-                    ],
-                  ))
+                ? const Km1Empty(
+                    icon: Km1Icons.store,
+                    title: 'ただいま商品を準備しています',
+                    body: 'しばらくお待ちください。',
+                  )
                 : GridView.builder(
-                    padding: const EdgeInsets.all(16),
+                    padding: const EdgeInsets.all(Km1Space.lg),
                     gridDelegate:
                         const SliverGridDelegateWithMaxCrossAxisExtent(
                       maxCrossAxisExtent: 200, // 少し大きめ
                       childAspectRatio: 1.2,
-                      crossAxisSpacing: 12,
-                      mainAxisSpacing: 12,
+                      crossAxisSpacing: Km1Space.md,
+                      mainAxisSpacing: Km1Space.md,
                     ),
                     itemCount: products.length,
                     itemBuilder: (_, i) {
                       final p = products[i];
                       final inCart = cartItems
-                          .where((c) => c.productId == p.id)
-                          .fold(0, (s, c) => s + c.quantity);
-                      return GestureDetector(
+                          .where((it) => it.productId == p.id)
+                          .fold(0, (s, it) => s + it.quantity);
+                      return ProductTile(
+                        name: p.name,
+                        price: p.price,
+                        count: inCart,
+                        large: true,
                         onTap: () =>
                             ref.read(currentOrderProvider.notifier).addProduct(
                                   productId: p.id,
                                   productName: p.name,
                                   unitPrice: p.price,
                                 ),
-                        child: Card(
-                          elevation: inCart > 0 ? 4 : 1,
-                          color:
-                              inCart > 0 ? colorScheme.primaryContainer : null,
-                          child: Stack(children: [
-                            Center(
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  // 商品名（大きめ）
-                                  Text(p.name,
-                                      style: TextStyle(
-                                        fontWeight: FontWeight.w700,
-                                        fontSize: 16,
-                                        color: inCart > 0
-                                            ? colorScheme.onPrimaryContainer
-                                            : null,
-                                      ),
-                                      textAlign: TextAlign.center),
-                                  const SizedBox(height: 6),
-                                  // 価格（大きめ）
-                                  Text('¥${p.price}',
-                                      style: TextStyle(
-                                        color: inCart > 0
-                                            ? colorScheme.onPrimaryContainer
-                                                .withValues(alpha: 0.7)
-                                            : Colors.grey[600],
-                                        fontSize: 14,
-                                        fontWeight: FontWeight.w500,
-                                      )),
-                                ],
-                              ),
-                            ),
-                            // カート数バッジ
-                            if (inCart > 0)
-                              Positioned(
-                                top: 8,
-                                right: 8,
-                                child: CircleAvatar(
-                                  radius: 13,
-                                  backgroundColor: colorScheme.primary,
-                                  child: Text('$inCart',
-                                      style: const TextStyle(
-                                          color: Colors.white,
-                                          fontSize: 12,
-                                          fontWeight: FontWeight.bold)),
-                                ),
-                              ),
-                          ]),
-                        ),
                       );
                     },
                   ),
           ),
 
-          const Divider(height: 1),
+          Divider(height: 1, color: c.strokeSubtle),
 
           // ─── カート ───
           Container(
-            constraints: const BoxConstraints(maxHeight: 300),
-            color: Colors.white,
+            constraints: const BoxConstraints(maxHeight: 320),
+            color: c.surface,
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
                 // カートが空の場合
                 if (cartItems.isEmpty)
-                  const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 16),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: Km1Space.lg),
                     child: Text('商品を選んでください',
-                        style: TextStyle(color: Colors.grey, fontSize: 14)),
+                        style: Km1Text.body1.copyWith(color: c.inkSecondary)),
                   ),
 
                 // カートアイテム一覧
@@ -170,62 +122,23 @@ class OrderRegistrationScreen extends ConsumerWidget {
                   Flexible(
                     child: ListView(
                       shrinkWrap: true,
-                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                      padding: const EdgeInsets.fromLTRB(
+                          Km1Space.lg, Km1Space.sm, Km1Space.lg, 0),
                       children: cartItems
-                          .map((item) => Padding(
-                                padding:
-                                    const EdgeInsets.symmetric(vertical: 3),
-                                child: Row(children: [
-                                  Expanded(
-                                    child: Text(item.productName,
-                                        style: const TextStyle(fontSize: 14),
-                                        overflow: TextOverflow.ellipsis),
-                                  ),
-                                  // ─ ボタン（大きめ）─
-                                  SizedBox(
-                                    width: 36,
-                                    height: 36,
-                                    child: IconButton(
-                                      icon: const Icon(
-                                          Icons.remove_circle_outline,
-                                          size: 22),
-                                      padding: EdgeInsets.zero,
-                                      onPressed: () => ref
-                                          .read(currentOrderProvider.notifier)
-                                          .decreaseProduct(item.productId),
+                          .map((item) => CartRow(
+                                name: item.productName,
+                                quantity: item.quantity,
+                                subtotal: item.subtotal,
+                                onDecrease: () => ref
+                                    .read(currentOrderProvider.notifier)
+                                    .decreaseProduct(item.productId),
+                                onIncrease: () => ref
+                                    .read(currentOrderProvider.notifier)
+                                    .addProduct(
+                                      productId: item.productId,
+                                      productName: item.productName,
+                                      unitPrice: item.unitPrice,
                                     ),
-                                  ),
-                                  SizedBox(
-                                    width: 30,
-                                    child: Text('${item.quantity}',
-                                        textAlign: TextAlign.center,
-                                        style: const TextStyle(
-                                            fontWeight: FontWeight.bold,
-                                            fontSize: 16)),
-                                  ),
-                                  // ＋ ボタン
-                                  SizedBox(
-                                    width: 36,
-                                    height: 36,
-                                    child: IconButton(
-                                      icon: const Icon(Icons.add_circle_outline,
-                                          size: 22),
-                                      padding: EdgeInsets.zero,
-                                      onPressed: () => ref
-                                          .read(currentOrderProvider.notifier)
-                                          .addProduct(
-                                            productId: item.productId,
-                                            productName: item.productName,
-                                            unitPrice: item.unitPrice,
-                                          ),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 6),
-                                  Text('¥${item.subtotal}',
-                                      style: const TextStyle(
-                                          fontWeight: FontWeight.w500,
-                                          fontSize: 14)),
-                                ]),
                               ))
                           .toList(),
                     ),
@@ -234,79 +147,71 @@ class OrderRegistrationScreen extends ConsumerWidget {
                 // 割引の内訳（セット割のみ）
                 if (totalDiscount > 0)
                   Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
+                    padding: const EdgeInsets.fromLTRB(
+                        Km1Space.lg, Km1Space.xs, Km1Space.lg, 0),
                     child: Column(children: [
                       Row(children: [
-                        const Text('小計',
-                            style: TextStyle(color: Colors.grey, fontSize: 13)),
+                        Text('小計',
+                            style: Km1Text.body1
+                                .copyWith(color: c.inkSecondary)),
                         const Spacer(),
                         Text('¥$subtotal',
-                            style: const TextStyle(fontSize: 13)),
+                            style: Km1Text.body1.copyWith(
+                                color: c.ink, fontFeatures: tabular)),
                       ]),
                       Row(children: [
-                        const Icon(Icons.local_offer,
-                            size: 12, color: Color(0xFF085041)),
-                        const SizedBox(width: 4),
-                        const Text('セット割',
-                            style: TextStyle(
-                                color: Color(0xFF085041), fontSize: 13)),
+                        Icon(Km1Icons.discount,
+                            size: Km1Size.iconSm, color: c.successInk),
+                        const SizedBox(width: Km1Space.xs),
+                        Text('セット割',
+                            style:
+                                Km1Text.body1.copyWith(color: c.successInk)),
                         const Spacer(),
                         Text('-¥$totalDiscount',
-                            style: const TextStyle(
-                                color: Color(0xFF085041), fontSize: 13)),
+                            style: Km1Text.body1.copyWith(
+                                color: c.successInk, fontFeatures: tabular)),
                       ]),
-                      const Divider(height: 8),
+                      Divider(height: Km1Space.sm, color: c.strokeSubtle),
                     ]),
                   ),
 
                 // 合計＋ボタン行
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 4, 16, 14),
+                  padding: const EdgeInsets.fromLTRB(
+                      Km1Space.lg, Km1Space.xs, Km1Space.lg, Km1Space.lg),
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
-                      // 合計
                       Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Text('合計',
-                                style: TextStyle(
-                                    fontSize: 12, color: Colors.grey)),
+                            Text('合計',
+                                style: Km1Text.caption1
+                                    .copyWith(color: c.inkSecondary)),
                             Text('¥$finalTotal',
-                                style: const TextStyle(
-                                    fontSize: 28, fontWeight: FontWeight.bold)),
+                                style: Km1Text.title2.copyWith(
+                                    color: c.ink, fontFeatures: tabular)),
                           ]),
                       const Spacer(),
-
-                      // クリアボタン（小さめ・控えめ）
                       if (cartItems.isNotEmpty)
                         TextButton(
                           onPressed: () =>
                               ref.read(currentOrderProvider.notifier).clear(),
-                          style: TextButton.styleFrom(
-                            foregroundColor: Colors.grey,
-                          ),
-                          child: const Text('クリア'),
+                          child: const Text('すべて外す'),
                         ),
-
-                      const SizedBox(width: 8),
-
-                      // 注文ボタン（大きく・目立つ）
-                      SizedBox(
-                        height: 52,
-                        child: FilledButton.icon(
-                          onPressed: cartItems.isEmpty
-                              ? null
-                              : () => _confirmOrder(
-                                  context, ref, finalTotal, totalDiscount),
-                          icon: const Icon(Icons.check, size: 20),
-                          label: const Text('注文する',
-                              style: TextStyle(
-                                  fontSize: 16, fontWeight: FontWeight.bold)),
-                          style: FilledButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(horizontal: 24),
-                          ),
+                      const SizedBox(width: Km1Space.sm),
+                      // 注文ボタン（お客様向けは 48px の大きいボタン）
+                      FilledButton(
+                        onPressed: cartItems.isEmpty
+                            ? null
+                            : () => _confirmOrder(
+                                context, ref, finalTotal, totalDiscount),
+                        style: const ButtonStyle(
+                          minimumSize: WidgetStatePropertyAll(
+                              Size(160, Km1Size.controlLgTouch)),
+                          textStyle: WidgetStatePropertyAll(Km1Text.subtitle2),
                         ),
+                        child: const Text('注文する'),
                       ),
                     ],
                   ),
@@ -328,84 +233,78 @@ class OrderRegistrationScreen extends ConsumerWidget {
   ) {
     final cartItems = ref.read(currentOrderProvider);
     final subtotal = cartItems.fold(0, (s, i) => s + i.subtotal);
+    const tabular = [FontFeature.tabularFigures()];
 
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (ctx) => AlertDialog(
-        title: const Text('ご注文の確認',
-            textAlign: TextAlign.center, style: TextStyle(fontSize: 18)),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // 注文内容リスト
-            ...cartItems.map((item) => Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 3),
-                  child: Row(children: [
-                    Expanded(
-                        child: Text(item.productName,
-                            style: const TextStyle(fontSize: 14))),
-                    Text('× ${item.quantity}',
-                        style:
-                            const TextStyle(color: Colors.grey, fontSize: 13)),
-                    const SizedBox(width: 12),
-                    Text('¥${item.subtotal}',
-                        style: const TextStyle(
-                            fontWeight: FontWeight.w500, fontSize: 14)),
+      builder: (ctx) {
+        final c = ctx.km1;
+        return AlertDialog(
+          title: const Text('ご注文の確認'),
+          content: SizedBox(
+            width: Km1Size.dialogWidthSm,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                ...cartItems.map((item) => Padding(
+                      padding:
+                          const EdgeInsets.symmetric(vertical: Km1Space.xxs),
+                      child: Row(children: [
+                        Expanded(
+                            child: Text(item.productName,
+                                style: Km1Text.body2.copyWith(color: c.ink))),
+                        Text('× ${item.quantity}',
+                            style: Km1Text.body2
+                                .copyWith(color: c.inkSecondary)),
+                        const SizedBox(width: Km1Space.md),
+                        Text('¥${item.subtotal}',
+                            style: Km1Text.body2
+                                .copyWith(color: c.ink, fontFeatures: tabular)),
+                      ]),
+                    )),
+                if (discountAmount > 0) ...[
+                  Divider(height: Km1Space.lg, color: c.strokeSubtle),
+                  Row(children: [
+                    Text('割引',
+                        style: Km1Text.body2.copyWith(color: c.successInk)),
+                    const Spacer(),
+                    Text('-¥$discountAmount',
+                        style: Km1Text.body2.copyWith(
+                            color: c.successInk, fontFeatures: tabular)),
                   ]),
-                )),
-
-            if (discountAmount > 0) ...[
-              const Divider(height: 16),
-              Row(children: [
-                const Text('割引',
-                    style: TextStyle(color: Colors.green, fontSize: 13)),
-                const Spacer(),
-                Text('-¥$discountAmount',
-                    style: const TextStyle(color: Colors.green, fontSize: 13)),
-              ]),
-            ],
-
-            const Divider(height: 16),
-
-            // 合計（大きく）
-            Center(
-              child: Column(children: [
-                const Text('合計金額',
-                    style: TextStyle(color: Colors.grey, fontSize: 13)),
-                const SizedBox(height: 4),
-                Text('¥$finalTotal',
-                    style: const TextStyle(
-                        fontSize: 36, fontWeight: FontWeight.bold)),
-              ]),
+                ],
+                Divider(height: Km1Space.lg, color: c.strokeSubtle),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text('合計',
+                        style: Km1Text.subtitle2.copyWith(color: c.ink)),
+                    const Spacer(),
+                    Text('¥$finalTotal',
+                        style: Km1Text.title1
+                            .copyWith(color: c.ink, fontFeatures: tabular)),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            OutlinedButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('戻る'),
+            ),
+            FilledButton(
+              onPressed: () {
+                Navigator.of(ctx).pop();
+                _placeOrder(context, ref, subtotal, discountAmount, finalTotal);
+              },
+              child: const Text('注文する'),
             ),
           ],
-        ),
-        actionsAlignment: MainAxisAlignment.center,
-        actions: [
-          // 戻るボタン
-          OutlinedButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            style: OutlinedButton.styleFrom(
-              minimumSize: const Size(120, 44),
-            ),
-            child: const Text('戻る', style: TextStyle(fontSize: 15)),
-          ),
-          const SizedBox(width: 12),
-          // 確定ボタン
-          FilledButton(
-            onPressed: () {
-              Navigator.of(ctx).pop();
-              _placeOrder(context, ref, subtotal, discountAmount, finalTotal);
-            },
-            style: FilledButton.styleFrom(
-              minimumSize: const Size(120, 44),
-            ),
-            child: const Text('注文する', style: TextStyle(fontSize: 15)),
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 
@@ -430,63 +329,41 @@ class OrderRegistrationScreen extends ConsumerWidget {
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (ctx) => AlertDialog(
-        title: const Text('ご注文ありがとうございます',
-            textAlign: TextAlign.center, style: TextStyle(fontSize: 16)),
-        content: Column(mainAxisSize: MainAxisSize.min, children: [
-          // ─── 整理番号 ───
-          const Text('整理番号',
-              style: TextStyle(color: Colors.grey, fontSize: 13)),
-          const SizedBox(height: 4),
-          Text(
-            orderNumber,
-            style: TextStyle(
-              fontSize: 72,
-              fontWeight: FontWeight.bold,
-              color: Theme.of(ctx).colorScheme.primary,
-              height: 1.1,
-            ),
+      builder: (ctx) {
+        final c = ctx.km1;
+        return AlertDialog(
+          title: const Text('ご注文ありがとうございます'),
+          content: SizedBox(
+            width: Km1Size.dialogWidthSm,
+            child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text('整理番号',
+                      textAlign: TextAlign.center,
+                      style: Km1Text.body1.copyWith(color: c.inkSecondary)),
+                  Text(orderNumber,
+                      textAlign: TextAlign.center,
+                      style: Km1Text.display.copyWith(color: c.ink)),
+                  Text('合計 ¥$finalTotal',
+                      textAlign: TextAlign.center,
+                      style: Km1Text.title3.copyWith(color: c.ink)),
+                  const SizedBox(height: Km1Space.lg),
+                  const Km1Notice(
+                    status: Km1Status.info,
+                    title: 'この番号をスタッフにお伝えください',
+                    body: 'お支払いは、番号をお呼びしてからお願いします。',
+                  ),
+                ]),
           ),
-
-          const SizedBox(height: 12),
-          const Divider(height: 1),
-          const SizedBox(height: 12),
-
-          // ─── 合計金額 ───
-          const Text('合計金額',
-              style: TextStyle(color: Colors.grey, fontSize: 13)),
-          const SizedBox(height: 4),
-          Text(
-            '¥$finalTotal',
-            style: const TextStyle(
-                fontSize: 40, fontWeight: FontWeight.bold, height: 1.1),
-          ),
-
-          const SizedBox(height: 16),
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: Colors.grey[100],
-              borderRadius: BorderRadius.circular(8),
+          actions: [
+            FilledButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('閉じる'),
             ),
-            child: const Text(
-              'この番号をスタッフにお伝えください\nお支払いは番号をお呼びしてから行います',
-              style: TextStyle(fontSize: 12, color: Colors.grey),
-              textAlign: TextAlign.center,
-            ),
-          ),
-        ]),
-        actionsAlignment: MainAxisAlignment.center,
-        actions: [
-          FilledButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            style: FilledButton.styleFrom(
-              minimumSize: const Size(160, 48),
-            ),
-            child: const Text('閉じる', style: TextStyle(fontSize: 16)),
-          ),
-        ],
-      ),
+          ],
+        );
+      },
     );
   }
 }

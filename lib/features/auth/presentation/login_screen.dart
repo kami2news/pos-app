@@ -10,6 +10,7 @@ import '../../products/domain/products_provider.dart';
 import '../../order/domain/order_provider.dart';
 import '../../discount/domain/discount_rules_provider.dart';
 import '../../../version.dart';
+import '../../../core/theme/km1.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
@@ -34,7 +35,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     final password = _pwCtrl.text;
     if (storeName.isEmpty || password.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('店舗コードとパスワードを入力してください')));
+          const SnackBar(content: Text('店舗コードとパスワードを入力してください。')));
       return;
     }
 
@@ -80,7 +81,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               actions: [
                 FilledButton(
                   onPressed: () => Navigator.of(ctx).pop(),
-                  child: const Text('確認して開設へ'),
+                  child: const Text('開設へ進む'),
                 ),
               ],
             ),
@@ -122,15 +123,15 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       await ref.read(discountRulesProvider.notifier).loadRules();
     } on DioException catch (e) {
       final msg = e.response?.statusCode == 401
-          ? '店舗コードまたはパスワードが違います'
-          : 'ログインに失敗しました（${e.message}）';
+          ? '店舗コードかパスワードが違います。入力し直してください。'
+          : 'ログインできませんでした。通信状態を確認してもう一度お試しください（${e.message}）';
       if (!mounted) return;
       ScaffoldMessenger.of(context)
           .showSnackBar(SnackBar(content: Text(msg)));
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('エラー: $e')));
+          .showSnackBar(SnackBar(content: Text('ログインできませんでした。もう一度お試しください（$e）')));
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -138,71 +139,80 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final c = context.km1;
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F5F5),
       body: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 400),
-          child: Card(
-            margin: const EdgeInsets.all(24),
-            child: Padding(
-              padding: const EdgeInsets.all(32),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  const Text('POS ログイン',
-                      style:
-                          TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-                      textAlign: TextAlign.center),
-                  const SizedBox(height: 28),
-                  TextField(
-                    controller: _codeCtrl,
-                    decoration: const InputDecoration(
-                        labelText: '店舗コード',
-                        border: OutlineInputBorder(),
-                        prefixIcon: Icon(Icons.store)),
-                    onSubmitted: (_) => _login(),
-                  ),
-                  const SizedBox(height: 14),
-                  TextField(
-                    controller: _pwCtrl,
-                    obscureText: true,
-                    decoration: const InputDecoration(
-                        labelText: 'パスワード',
-                        border: OutlineInputBorder(),
-                        prefixIcon: Icon(Icons.lock)),
-                    onSubmitted: (_) => _login(),
-                  ),
-                  const SizedBox(height: 22),
-                  FilledButton(
-                    onPressed: _loading ? null : _login,
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 13),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(Km1Space.lg),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: Km1Size.dialogWidthSm),
+            child: Container(
+              decoration: km1CardDecoration(context),
+              padding: const EdgeInsets.all(Km1Space.xxl),
+              child: AutofillGroup(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Text('kami2pos',
+                        style: Km1Text.caption1.copyWith(color: c.inkTertiary)),
+                    const SizedBox(height: Km1Space.xs),
+                    Text('ログイン', style: Theme.of(context).textTheme.titleLarge),
+                    const SizedBox(height: Km1Space.xxl),
+                    Km1Field(
+                      label: '店舗コード',
+                      child: TextField(
+                        controller: _codeCtrl,
+                        autofillHints: const [AutofillHints.username],
+                        textInputAction: TextInputAction.next,
+                        decoration: const InputDecoration(
+                            prefixIcon: Icon(Km1Icons.store)),
+                        onSubmitted: (_) => _login(),
+                      ),
+                    ),
+                    const SizedBox(height: Km1Space.lg),
+                    Km1Field(
+                      label: 'パスワード',
+                      child: TextField(
+                        controller: _pwCtrl,
+                        obscureText: true,
+                        autofillHints: const [AutofillHints.password],
+                        decoration: const InputDecoration(
+                            prefixIcon: Icon(Km1Icons.lock)),
+                        onSubmitted: (_) => _login(),
+                      ),
+                    ),
+                    const SizedBox(height: Km1Space.xxl),
+                    FilledButton(
+                      onPressed: _loading ? null : _login,
                       child: _loading
-                          ? const SizedBox(
-                              width: 20,
-                              height: 20,
-                              child: CircularProgressIndicator(
-                                  strokeWidth: 2, color: Colors.white))
-                          : const Text('ログイン', style: TextStyle(fontSize: 16)),
+                          ? Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                SizedBox(
+                                    width: Km1Size.iconSm,
+                                    height: Km1Size.iconSm,
+                                    child: CircularProgressIndicator(
+                                        strokeWidth: 2, color: c.inkDisabled)),
+                                const SizedBox(width: Km1Space.sm),
+                                const Text('ログイン中'),
+                              ],
+                            )
+                          : const Text('ログイン'),
                     ),
-                  ),
-                  const SizedBox(height: 16),
-                  TextButton(
-                    onPressed: () => context.go('/register'),
-                    child: const Text('店舗を新規登録する'),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'v$kAppVersion',
-                    style: const TextStyle(
-                      fontSize: 10,
-                      color: Colors.grey,
+                    const SizedBox(height: Km1Space.sm),
+                    TextButton(
+                      onPressed: () => context.go('/register'),
+                      child: const Text('店舗を登録する'),
                     ),
-                    textAlign: TextAlign.center,
-                  ),
-                ],
+                    const SizedBox(height: Km1Space.lg),
+                    Text(
+                      'v$kAppVersion',
+                      style: Km1Text.caption1.copyWith(color: c.inkTertiary),
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
+                ),
               ),
             ),
           ),

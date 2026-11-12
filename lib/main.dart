@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_web_plugins/url_strategy.dart';
-import 'package:google_fonts/google_fonts.dart';
-import 'features/auth/domain/models/auth_state.dart';
+import 'core/theme/km1.dart';
 import 'router/router.dart';
 
 void main() {
@@ -17,53 +16,18 @@ class MyApp extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // テーマカラーを監視（変更時にアプリ全体に反映）
-    final themeColorValue = ref.watch(
-      authStateProvider.select((s) => s.themeColor),
-    );
-    final seedColor = themeColorValue != null
-        ? Color(themeColorValue)
-        : const Color(0xFF1456A0); // デフォルト：ネイビー
-
     // routerProvider を watch してリアクティブに更新
     final router = ref.watch(routerProvider);
 
+    // 見た目は KM1（Fluent 2 準拠）。ブランド色は EPSON ブルーに固定し、
+    // 店舗のテーマカラーは分類色として上部バーの下の帯にだけ使う（km1.dart の storeBand）。
     return MaterialApp.router(
-      title: 'POS',
+      title: 'kami2pos',
       debugShowCheckedModeBanner: false,
       routerConfig: router,
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: seedColor,
-          brightness: Brightness.light,
-        ),
-        useMaterial3: true,
-        // Noto Sans JP で日本語文字を確実に表示
-        textTheme: GoogleFonts.notoSansJpTextTheme(),
-        // AppBar のデフォルトカラーをテーマカラーに統一
-        appBarTheme: AppBarTheme(
-          backgroundColor: seedColor,
-          foregroundColor: Colors.white,
-          elevation: 0,
-          centerTitle: false,
-        ),
-        // FilledButton のデフォルトカラーも統一
-        filledButtonTheme: FilledButtonThemeData(
-          style: FilledButton.styleFrom(
-            backgroundColor: seedColor,
-            foregroundColor: Colors.white,
-          ),
-        ),
-        // Switch のアクティブカラー
-        switchTheme: SwitchThemeData(
-          thumbColor: WidgetStateProperty.resolveWith((states) =>
-              states.contains(WidgetState.selected) ? seedColor : null),
-          trackColor: WidgetStateProperty.resolveWith((states) =>
-              states.contains(WidgetState.selected)
-                  ? seedColor.withValues(alpha: 0.4)
-                  : null),
-        ),
-      ),
+      theme: AppTheme.light(),
+      darkTheme: AppTheme.dark(),
+      themeMode: ThemeMode.system,
       // レスポンシブ文字サイズ（画面幅に応じてスケール）
       builder: (context, child) {
         final width = MediaQuery.sizeOf(context).width;

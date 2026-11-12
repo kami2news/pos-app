@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/network/api_service.dart';
+import '../../../core/theme/km1.dart';
 
 /// 注文者モード：商品選択画面
 /// QRコードから認証なしでアクセス → /customer/:storeCode
@@ -17,7 +18,7 @@ class _CustomerOrderScreenState extends State<CustomerOrderScreen> {
   bool _loading = true;
   String? _error;
   String _storeName = '';
-  Color _themeColor = const Color(0xFF1456A0);
+  int? _storeColor; // 店舗の分類色（上部バーの下の帯）
   bool _isOpen = false;
   List<Map<String, dynamic>> _products = [];
   final Map<String, int> _quantities = {}; // productId → 数量
@@ -36,7 +37,7 @@ class _CustomerOrderScreenState extends State<CustomerOrderScreen> {
       if (!mounted) return;
       setState(() {
         _storeName = data['store_name'] as String? ?? '';
-        _themeColor = Color(0xFF000000 | (rawColor & 0xFFFFFF));
+        _storeColor = 0xFF000000 | (rawColor & 0xFFFFFF);
         _isOpen = data['is_open'] as bool? ?? false;
         _products = List<Map<String, dynamic>>.from(
             data['products'] as List? ?? []);
@@ -45,7 +46,7 @@ class _CustomerOrderScreenState extends State<CustomerOrderScreen> {
     } catch (e) {
       if (!mounted) return;
       setState(() {
-        _error = '店舗情報の読み込みに失敗しました。\nQRコードを読み直すか、スタッフにお声がけください。';
+        _error = '店舗の情報を読み込めませんでした。QR コードを読み直すか、スタッフにお声がけください。';
         _loading = false;
       });
     }
@@ -76,7 +77,6 @@ class _CustomerOrderScreenState extends State<CustomerOrderScreen> {
       builder: (ctx) => _ConfirmDialog(
         items: _cartItems,
         subtotal: _subtotal,
-        themeColor: _themeColor,
       ),
     );
     if (confirmed != true || !mounted) return;
@@ -95,13 +95,13 @@ class _CustomerOrderScreenState extends State<CustomerOrderScreen> {
       context.go('/customer/${widget.storeCode}/number/$orderId');
     } on DioException catch (e) {
       if (!mounted) return;
-      final msg = e.response?.data?['error'] as String? ?? '注文に失敗しました';
+      final msg = e.response?.data?['error'] as String? ?? 'ご注文を送信できませんでした。もう一度お試しください。';
       ScaffoldMessenger.of(context)
           .showSnackBar(SnackBar(content: Text(msg)));
     } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('注文に失敗しました。もう一度お試しください')));
+          const SnackBar(content: Text('ご注文を送信できませんでした。もう一度お試しください。')));
     } finally {
       if (mounted) setState(() => _ordering = false);
     }
@@ -109,31 +109,21 @@ class _CustomerOrderScreenState extends State<CustomerOrderScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Theme(
-      data: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: _themeColor),
-        useMaterial3: true,
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(_storeName.isEmpty ? 'ご注文' : _storeName),
+        automaticallyImplyLeading: false,
+        bottom: storeBand(_storeColor),
       ),
-      child: Scaffold(
-        appBar: AppBar(
-          backgroundColor: _themeColor,
-          foregroundColor: Colors.white,
-          title:
-              Text(_storeName.isEmpty ? 'ご注文' : _storeName),
-          automaticallyImplyLeading: false,
-          elevation: 0,
-        ),
-        body: _buildBody(),
-        bottomNavigationBar: _isOpen && !_loading && _error == null
-            ? _OrderBar(
-                subtotal: _subtotal,
-                hasItems: _hasItems,
-                ordering: _ordering,
-                themeColor: _themeColor,
-                onOrder: _onOrderPressed,
-              )
-            : null,
-      ),
+      body: _buildBody(),
+      bottomNavigationBar: _isOpen && !_loading && _error == null
+          ? _OrderBar(
+              subtotal: _subtotal,
+              hasItems: _hasItems,
+              ordering: _ordering,
+              onOrder: _onOrderPressed,
+            )
+          : null,
     );
   }
 
@@ -143,64 +133,59 @@ class _CustomerOrderScreenState extends State<CustomerOrderScreen> {
     }
     if (_error != null) {
       return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(32),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(Icons.wifi_off, size: 64, color: Colors.grey.shade400),
-              const SizedBox(height: 16),
-              Text(_error!,
-                  style: TextStyle(fontSize: 16, color: Colors.grey.shade600),
-                  textAlign: TextAlign.center),
-              const SizedBox(height: 24),
-              FilledButton.icon(
-                onPressed: () {
-                  setState(() {
-                    _loading = true;
-                    _error = null;
-                  });
-                  _loadStoreInfo();
-                },
-                icon: const Icon(Icons.refresh),
-                label: const Text('再読み込み'),
-              ),
-            ],
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(Km1Space.lg),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: Km1Size.dialogWidthSm),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Km1Notice(
+                    status: Km1Status.danger,
+                    title: '読み込めませんでした',
+                    body: _error),
+                const SizedBox(height: Km1Space.lg),
+                FilledButton.icon(
+                  onPressed: () {
+                    setState(() {
+                      _loading = true;
+                      _error = null;
+                    });
+                    _loadStoreInfo();
+                  },
+                  icon: const Icon(Km1Icons.refresh, size: Km1Size.iconMd),
+                  label: const Text('もう一度読み込む'),
+                ),
+              ],
+            ),
           ),
         ),
       );
     }
     if (!_isOpen) {
-      return Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.store_mall_directory_outlined,
-                size: 72, color: Colors.grey.shade400),
-            const SizedBox(height: 16),
-            Text('現在受付中ではありません',
-                style: TextStyle(
-                    fontSize: 20,
-                    color: Colors.grey.shade600,
-                    fontWeight: FontWeight.w500)),
-            const SizedBox(height: 8),
-            Text('店舗スタッフにお問い合わせください',
-                style: TextStyle(fontSize: 14, color: Colors.grey.shade500)),
-          ],
-        ),
+      return const Km1Empty(
+        icon: Km1Icons.store,
+        title: 'ただいま注文を受け付けていません',
+        body: '店舗のスタッフにお問い合わせください。',
       );
     }
     if (_products.isEmpty) {
-      return Center(
-          child: Text('商品が登録されていません',
-              style: TextStyle(color: Colors.grey.shade500)));
+      return const Km1Empty(
+        icon: Km1Icons.product,
+        title: '商品が登録されていません',
+        body: '店舗のスタッフにお問い合わせください。',
+      );
     }
 
     return ListView.separated(
-      padding: const EdgeInsets.symmetric(vertical: 8),
+      padding: const EdgeInsets.symmetric(vertical: Km1Space.sm),
       itemCount: _products.length,
-      separatorBuilder: (_, __) =>
-          const Divider(height: 1, indent: 16, endIndent: 16),
+      separatorBuilder: (_, __) => Divider(
+          height: 1,
+          indent: Km1Space.lg,
+          endIndent: Km1Space.lg,
+          color: context.km1.strokeSubtle),
       itemBuilder: (_, i) {
         final p = _products[i];
         final id = p['id'] as String;
@@ -209,7 +194,6 @@ class _CustomerOrderScreenState extends State<CustomerOrderScreen> {
           name: p['name'] as String,
           price: p['price'] as int,
           quantity: qty,
-          themeColor: _themeColor,
           onDecrement: qty > 0
               ? () => setState(() => _quantities[id] = qty - 1)
               : null,
@@ -225,7 +209,6 @@ class _ProductTile extends StatelessWidget {
   final String name;
   final int price;
   final int quantity;
-  final Color themeColor;
   final VoidCallback? onDecrement;
   final VoidCallback onIncrement;
 
@@ -233,92 +216,62 @@ class _ProductTile extends StatelessWidget {
     required this.name,
     required this.price,
     required this.quantity,
-    required this.themeColor,
     required this.onDecrement,
     required this.onIncrement,
   });
 
   @override
   Widget build(BuildContext context) {
+    final c = context.km1;
+    // お客様のスマートフォンで押しやすいよう、増減ボタンは 48px
+    const big = ButtonStyle(
+      minimumSize: WidgetStatePropertyAll(
+          Size(Km1Size.controlLgTouch, Km1Size.controlLgTouch)),
+      fixedSize: WidgetStatePropertyAll(
+          Size(Km1Size.controlLgTouch, Km1Size.controlLgTouch)),
+      padding: WidgetStatePropertyAll(EdgeInsets.zero),
+    );
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      padding: const EdgeInsets.symmetric(
+          horizontal: Km1Space.lg, vertical: Km1Space.md),
       child: Row(
         children: [
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(name,
-                    style: const TextStyle(
-                        fontSize: 18, fontWeight: FontWeight.w600)),
-                const SizedBox(height: 2),
+                Text(name, style: Km1Text.subtitle1.copyWith(color: c.ink)),
+                const SizedBox(height: Km1Space.xxs),
                 Text('¥$price',
-                    style: TextStyle(
-                        fontSize: 15,
-                        color: themeColor,
-                        fontWeight: FontWeight.w500)),
+                    style: Km1Text.body2.copyWith(color: c.inkSecondary)),
               ],
             ),
           ),
           // 数量コントロール（大きめタップ）
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              _CounterButton(
-                icon: Icons.remove,
-                onTap: onDecrement,
-                color: quantity > 0 ? themeColor : Colors.grey.shade300,
-                iconColor: quantity > 0 ? Colors.white : Colors.grey.shade400,
-              ),
-              SizedBox(
-                width: 44,
-                child: Text(
-                  '$quantity',
-                  style: const TextStyle(
-                      fontSize: 24, fontWeight: FontWeight.bold),
-                  textAlign: TextAlign.center,
-                ),
-              ),
-              _CounterButton(
-                icon: Icons.add,
-                onTap: onIncrement,
-                color: themeColor,
-                iconColor: Colors.white,
-              ),
-            ],
+          OutlinedButton(
+            style: big,
+            onPressed: onDecrement,
+            child: Icon(Km1Icons.subtract,
+                semanticLabel: '$nameを 1 つ減らす',
+                color: onDecrement == null ? c.inkDisabled : c.ink),
+          ),
+          SizedBox(
+            width: 48,
+            child: Text(
+              '$quantity',
+              style: Km1Text.title3.copyWith(
+                  color: c.ink,
+                  fontFeatures: const [FontFeature.tabularFigures()]),
+              textAlign: TextAlign.center,
+            ),
+          ),
+          FilledButton(
+            style: big,
+            onPressed: onIncrement,
+            child: Icon(Km1Icons.add,
+                semanticLabel: '$nameを 1 つ増やす', color: c.onBrand),
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _CounterButton extends StatelessWidget {
-  final IconData icon;
-  final VoidCallback? onTap;
-  final Color color;
-  final Color iconColor;
-
-  const _CounterButton({
-    required this.icon,
-    required this.onTap,
-    required this.color,
-    required this.iconColor,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 150),
-        width: 44,
-        height: 44,
-        decoration: BoxDecoration(
-          color: color,
-          shape: BoxShape.circle,
-        ),
-        child: Icon(icon, color: iconColor, size: 22),
       ),
     );
   }
@@ -329,63 +282,55 @@ class _OrderBar extends StatelessWidget {
   final int subtotal;
   final bool hasItems;
   final bool ordering;
-  final Color themeColor;
   final VoidCallback onOrder;
 
   const _OrderBar({
     required this.subtotal,
     required this.hasItems,
     required this.ordering,
-    required this.themeColor,
     required this.onOrder,
   });
 
   @override
   Widget build(BuildContext context) {
-    return SafeArea(
-      child: Container(
-        padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
-        decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.surface,
-          boxShadow: const [
-            BoxShadow(color: Colors.black12, blurRadius: 8, offset: Offset(0, -2))
-          ],
-        ),
-        child: Row(
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Text('合計',
-                      style: TextStyle(fontSize: 13, color: Colors.grey)),
-                  Text(
-                    '¥$subtotal',
-                    style: const TextStyle(
-                        fontSize: 28, fontWeight: FontWeight.bold),
-                  ),
-                ],
+    final c = context.km1;
+    return Container(
+      decoration: BoxDecoration(
+        color: c.surface,
+        border: Border(top: BorderSide(color: c.strokeSubtle)),
+      ),
+      child: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(Km1Space.lg),
+          child: Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text('合計',
+                        style: Km1Text.caption1.copyWith(color: c.inkSecondary)),
+                    Text('¥$subtotal',
+                        style: Km1Text.title2.copyWith(
+                            color: c.ink,
+                            fontFeatures: const [
+                              FontFeature.tabularFigures()
+                            ])),
+                  ],
+                ),
               ),
-            ),
-            FilledButton(
-              style: FilledButton.styleFrom(
-                backgroundColor: hasItems ? themeColor : Colors.grey.shade300,
-                foregroundColor: Colors.white,
-                minimumSize: const Size(140, 56),
-                textStyle: const TextStyle(
-                    fontSize: 18, fontWeight: FontWeight.bold),
+              FilledButton(
+                style: const ButtonStyle(
+                  minimumSize: WidgetStatePropertyAll(
+                      Size(160, Km1Size.controlLgTouch)),
+                  textStyle: WidgetStatePropertyAll(Km1Text.subtitle2),
+                ),
+                onPressed: (hasItems && !ordering) ? onOrder : null,
+                child: Text(ordering ? '送信中' : '注文する'),
               ),
-              onPressed: (hasItems && !ordering) ? onOrder : null,
-              child: ordering
-                  ? const SizedBox(
-                      width: 24,
-                      height: 24,
-                      child: CircularProgressIndicator(
-                          strokeWidth: 2.5, color: Colors.white))
-                  : const Text('注文する'),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -396,61 +341,62 @@ class _OrderBar extends StatelessWidget {
 class _ConfirmDialog extends StatelessWidget {
   final List<Map<String, dynamic>> items;
   final int subtotal;
-  final Color themeColor;
 
   const _ConfirmDialog({
     required this.items,
     required this.subtotal,
-    required this.themeColor,
   });
 
   @override
   Widget build(BuildContext context) {
+    final c = context.km1;
+    const tabular = [FontFeature.tabularFigures()];
     return AlertDialog(
       title: const Text('ご注文の確認'),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          ...items.map((item) => Padding(
-                padding: const EdgeInsets.symmetric(vertical: 4),
-                child: Row(
-                  children: [
-                    Expanded(
-                        child: Text('${item['product_name']}',
-                            style: const TextStyle(fontSize: 15))),
-                    Text('× ${item['quantity']}',
-                        style: TextStyle(
-                            fontSize: 15, color: Colors.grey.shade600)),
-                    const SizedBox(width: 8),
-                    Text(
-                        '¥${(item['unit_price'] as int) * (item['quantity'] as int)}',
-                        style: const TextStyle(
-                            fontSize: 15, fontWeight: FontWeight.w500)),
-                  ],
-                ),
-              )),
-          const Divider(height: 20),
-          Row(
-            children: [
-              const Expanded(
-                  child: Text('合計',
-                      style: TextStyle(
-                          fontWeight: FontWeight.bold, fontSize: 16))),
-              Text('¥$subtotal',
-                  style: const TextStyle(
-                      fontWeight: FontWeight.bold, fontSize: 20)),
-            ],
-          ),
-        ],
+      content: SizedBox(
+        width: Km1Size.dialogWidthSm,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            ...items.map((item) => Padding(
+                  padding: const EdgeInsets.symmetric(vertical: Km1Space.xs),
+                  child: Row(
+                    children: [
+                      Expanded(
+                          child: Text('${item['product_name']}',
+                              style: Km1Text.body2.copyWith(color: c.ink))),
+                      Text('× ${item['quantity']}',
+                          style:
+                              Km1Text.body2.copyWith(color: c.inkSecondary)),
+                      const SizedBox(width: Km1Space.sm),
+                      Text(
+                          '¥${(item['unit_price'] as int) * (item['quantity'] as int)}',
+                          style: Km1Text.body2
+                              .copyWith(color: c.ink, fontFeatures: tabular)),
+                    ],
+                  ),
+                )),
+            Divider(height: Km1Space.xl, color: c.strokeSubtle),
+            Row(
+              children: [
+                Expanded(
+                    child: Text('合計',
+                        style: Km1Text.subtitle2.copyWith(color: c.ink))),
+                Text('¥$subtotal',
+                    style: Km1Text.title3
+                        .copyWith(color: c.ink, fontFeatures: tabular)),
+              ],
+            ),
+          ],
+        ),
       ),
       actions: [
-        TextButton(
+        OutlinedButton(
           onPressed: () => Navigator.of(context).pop(false),
-          child: const Text('修正する'),
+          child: const Text('戻って直す'),
         ),
         FilledButton(
-          style: FilledButton.styleFrom(backgroundColor: themeColor),
           onPressed: () => Navigator.of(context).pop(true),
           child: const Text('注文する'),
         ),

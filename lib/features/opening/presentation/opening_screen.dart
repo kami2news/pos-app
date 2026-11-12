@@ -2,6 +2,7 @@
 import 'dart:html' as html;
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import '../../../core/theme/km1.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../auth/domain/models/auth_state.dart';
 import '../../order/domain/order_provider.dart';
@@ -27,13 +28,13 @@ class _OpeningScreenState extends ConsumerState<OpeningScreen> {
     final cashText = _cashCtrl.text.trim();
     if (cashText.isEmpty) {
       ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('レジ内金を入力してください')));
+          .showSnackBar(const SnackBar(content: Text('レジ内金を入力してください。')));
       return;
     }
     final openingCash = int.tryParse(cashText);
     if (openingCash == null) {
       ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('半角数字で入力してください')));
+          .showSnackBar(const SnackBar(content: Text('レジ内金は半角数字で入力してください。')));
       return;
     }
 
@@ -63,14 +64,14 @@ class _OpeningScreenState extends ConsumerState<OpeningScreen> {
           );
       // router が自動で /orders にリダイレクト
     } on DioException catch (e) {
-      final msg = e.response?.data?['error'] ?? '開設に失敗しました（${e.message}）';
+      final msg = e.response?.data?['error'] ?? '開設できませんでした。通信状態を確認してもう一度お試しください（${e.message}）';
       if (!mounted) return;
       ScaffoldMessenger.of(context)
           .showSnackBar(SnackBar(content: Text(msg.toString())));
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('エラー: $e')));
+          .showSnackBar(SnackBar(content: Text('開設できませんでした。もう一度お試しください（$e）')));
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -78,78 +79,57 @@ class _OpeningScreenState extends ConsumerState<OpeningScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final c = context.km1;
     final today = DateTime.now();
-    final storeName = ref.watch(authStateProvider).storeName ?? '';
+    final auth = ref.watch(authStateProvider);
+    final storeName = auth.storeName ?? '';
 
     return Scaffold(
       appBar: AppBar(
-        title: Text('開設作業 - $storeName'),
+        title: Text('開設 - $storeName'),
+        bottom: storeBand(auth.themeColor),
       ),
       body: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 440),
-          child: Padding(
-            padding: const EdgeInsets.all(24),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(Km1Space.lg),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: Km1Size.dialogWidthSm),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(20),
-                    child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text('営業日',
-                              style:
-                                  TextStyle(fontSize: 12, color: Colors.grey)),
-                          const SizedBox(height: 4),
-                          Text(
-                            '${today.year}年${today.month}月${today.day}日',
-                            style: const TextStyle(
-                                fontSize: 22, fontWeight: FontWeight.bold),
+                Container(
+                  decoration: km1CardDecoration(context),
+                  padding: const EdgeInsets.all(Km1Space.lg),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('営業日',
+                          style: Km1Text.caption1.copyWith(color: c.inkSecondary)),
+                      const SizedBox(height: Km1Space.xs),
+                      Text('今日 ${km1Date(today)}',
+                          style: Theme.of(context).textTheme.titleLarge),
+                      const SizedBox(height: Km1Space.xxl),
+                      Km1Field(
+                        label: 'レジ内金（開始時、円）',
+                        child: TextField(
+                          controller: _cashCtrl,
+                          keyboardType: TextInputType.number,
+                          textAlign: TextAlign.end,
+                          decoration: const InputDecoration(
+                            prefixText: '¥ ',
+                            hintText: '50000',
                           ),
-                        ]),
+                          onSubmitted: (_) { if (!_loading) _open(); },
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-                const SizedBox(height: 16),
-                Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(20),
-                    child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text('レジ内金（開始時）',
-                              style: TextStyle(
-                                  fontSize: 13, fontWeight: FontWeight.w500)),
-                          const SizedBox(height: 12),
-                          TextField(
-                            controller: _cashCtrl,
-                            keyboardType: TextInputType.number,
-                            decoration: const InputDecoration(
-                              labelText: '金額（円）',
-                              prefixText: '¥',
-                              border: OutlineInputBorder(),
-                              hintText: '例: 50000',
-                            ),
-                          ),
-                        ]),
-                  ),
-                ),
-                const SizedBox(height: 24),
-                FilledButton.icon(
+                const SizedBox(height: Km1Space.xxl),
+                FilledButton(
                   onPressed: _loading ? null : _open,
-                  icon: const Icon(Icons.store_outlined),
-                  label: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 13),
-                    child: _loading
-                        ? const SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: CircularProgressIndicator(
-                                strokeWidth: 2, color: Colors.white))
-                        : const Text('開設する', style: TextStyle(fontSize: 16)),
-                  ),
+                  child: Text(_loading ? '開設中' : '開設'),
                 ),
               ],
             ),

@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../domain/order_provider.dart';
+import '../../auth/domain/models/auth_state.dart';
+import '../../../core/theme/km1.dart';
 
 class OrderListScreen extends ConsumerStatefulWidget {
   const OrderListScreen({super.key});
@@ -32,18 +34,39 @@ class _OrderListScreenState extends ConsumerState<OrderListScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final c = context.km1;
     final orders = ref.watch(orderListProvider);
     final productSales = ref.watch(productSalesProvider);
     final totalSold = ref.watch(totalSoldProvider);
+    final storeColor = ref.watch(authStateProvider.select((s) => s.themeColor));
     final totalAmount = orders
         .where((o) => o.isCompleted)
         .fold(0, (s, o) => s + o.totalAmount);
 
+    Widget amountRow(String label, String value,
+            {Color? color, bool strong = false}) =>
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: Km1Space.xxs),
+          child: Row(children: [
+            Text(label,
+                style: (strong ? Km1Text.body1Strong : Km1Text.body1)
+                    .copyWith(color: color ?? c.ink)),
+            const Spacer(),
+            Text(value,
+                style: (strong ? Km1Text.body1Strong : Km1Text.body1)
+                    .copyWith(
+                        color: color ?? c.ink,
+                        fontFeatures: const [FontFeature.tabularFigures()])),
+          ]),
+        );
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('注文一覧'),
+        bottom: storeBand(storeColor),
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
+          icon: const Icon(Km1Icons.back),
+          tooltip: '戻る',
           onPressed: () => context.go('/orders'),
         ),
       ),
@@ -51,140 +74,139 @@ class _OrderListScreenState extends ConsumerState<OrderListScreen> {
         children: [
           // ─── 本日のサマリー ───
           Container(
-            color: const Color(0xFFF0F4FF),
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            color: c.surface,
+            padding: const EdgeInsets.all(Km1Space.lg),
             child: Row(children: [
-              _SummaryChip(label: '注文件数', value: '${orders.length}件'),
-              const SizedBox(width: 12),
-              _SummaryChip(label: '販売総数', value: '$totalSold点'),
-              const SizedBox(width: 12),
+              _SummaryChip(label: '注文件数', value: '${orders.length} 件'),
+              const SizedBox(width: Km1Space.sm),
+              _SummaryChip(label: '販売総数', value: '$totalSold 点'),
+              const SizedBox(width: Km1Space.sm),
               _SummaryChip(label: '売上合計', value: '¥$totalAmount'),
             ]),
           ),
 
           // ─── 商品別販売数 ───
           if (productSales.isNotEmpty)
-            ExpansionTile(
-              dense: true,
-              title: const Text('商品別販売数',
-                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
-              children: [
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-                  child: Wrap(
-                    spacing: 8,
-                    runSpacing: 6,
-                    children: (productSales.entries.toList()
-                          ..sort((a, b) => b.value.compareTo(a.value)))
-                        .map((e) => Chip(
-                              label: Text('${e.key}  ${e.value}点',
-                                  style: const TextStyle(fontSize: 12)),
-                              backgroundColor: const Color(0xFFE3F0FC),
-                            ))
-                        .toList(),
+            Container(
+              color: c.surface,
+              child: ExpansionTile(
+                dense: true,
+                title: Text('商品別販売数',
+                    style: Km1Text.body1Strong.copyWith(color: c.ink)),
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(
+                        Km1Space.lg, 0, Km1Space.lg, Km1Space.md),
+                    child: Wrap(
+                      spacing: Km1Space.sm,
+                      runSpacing: Km1Space.sm,
+                      children: (productSales.entries.toList()
+                            ..sort((a, b) => b.value.compareTo(a.value)))
+                          .map((e) => Chip(
+                                label: Text('${e.key}　${e.value} 点'),
+                              ))
+                          .toList(),
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
 
-          const Divider(height: 1),
+          Divider(height: 1, color: c.strokeSubtle),
 
           // ─── 注文リスト ───
           Expanded(
             child: orders.isEmpty
-                ? const Center(
-                    child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                        Icon(Icons.receipt_long_outlined,
-                            size: 64, color: Colors.grey),
-                        SizedBox(height: 12),
-                        Text('まだ注文がありません',
-                            style: TextStyle(color: Colors.grey)),
-                      ]))
+                ? const Km1Empty(
+                    icon: Km1Icons.order,
+                    title: 'まだ注文がありません',
+                    body: '注文が入ると、ここに新しい順に表示されます。',
+                  )
                 : ListView.separated(
-                    padding: const EdgeInsets.all(12),
+                    padding: const EdgeInsets.all(Km1Space.lg),
                     itemCount: orders.length,
-                    separatorBuilder: (_, __) => const SizedBox(height: 6),
+                    separatorBuilder: (_, __) =>
+                        const SizedBox(height: Km1Space.sm),
                     itemBuilder: (_, i) {
                       final order = orders[orders.length - 1 - i];
-                      final time = order.orderedAt;
-                      return Card(
+                      return Container(
+                        decoration: km1CardDecoration(context),
+                        clipBehavior: Clip.antiAlias,
                         child: ExpansionTile(
-                          leading: CircleAvatar(
-                            backgroundColor: const Color(0xFF1456A0),
+                          leading: Container(
+                            constraints: const BoxConstraints(minWidth: 40),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: Km1Space.sm,
+                                vertical: Km1Space.xs),
+                            decoration: BoxDecoration(
+                              color: c.brandTint,
+                              borderRadius:
+                                  BorderRadius.circular(Km1Radius.md),
+                            ),
                             child: Text(order.orderNumber,
-                                style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.bold)),
+                                textAlign: TextAlign.center,
+                                style: Km1Text.body1Strong
+                                    .copyWith(color: c.brandInk)),
                           ),
                           title: Text('整理番号 ${order.orderNumber}',
                               style:
-                                  const TextStyle(fontWeight: FontWeight.w600)),
+                                  Km1Text.body1Strong.copyWith(color: c.ink)),
                           subtitle: Text(
-                            '${time.hour.toString().padLeft(2, '0')}:'
-                            '${time.minute.toString().padLeft(2, '0')}'
-                            '　合計 ¥${order.totalAmount}'
+                            '${km1Time(order.orderedAt)}　合計 ¥${order.totalAmount}'
                             '${order.discountAmount > 0 ? '（割引 -¥${order.discountAmount}）' : ''}',
-                            style: const TextStyle(fontSize: 12),
+                            style: Km1Text.caption1
+                                .copyWith(color: c.inkSecondary),
                             overflow: TextOverflow.ellipsis,
                             maxLines: 2,
                           ),
                           trailing:
                               Row(mainAxisSize: MainAxisSize.min, children: [
                             IconButton(
-                              icon: const Icon(Icons.print_outlined, size: 20),
+                              icon: const Icon(Km1Icons.print),
                               tooltip: '再印字',
                               onPressed: () {
-                                ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                                    content: Text(
-                                        'No.${order.orderNumber} を再印字（印刷機能は保留中）')));
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                        content: Text(
+                                            '整理番号 ${order.orderNumber} の再印字は、プリンターの対応後に使えます。')));
                               },
                             ),
                           ]),
                           children: [
                             Padding(
-                              padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                              padding: const EdgeInsets.fromLTRB(
+                                  Km1Space.lg, 0, Km1Space.lg, Km1Space.md),
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.stretch,
                                 children: [
-                                  ...order.items.map((item) => Row(children: [
-                                        Expanded(child: Text(item.productName)),
-                                        Text('× ${item.quantity}',
-                                            style: const TextStyle(
-                                                color: Colors.grey)),
-                                        const SizedBox(width: 12),
-                                        Text('¥${item.subtotal}',
-                                            style: const TextStyle(
-                                                fontWeight: FontWeight.w500)),
-                                      ])),
+                                  ...order.items.map((item) => Padding(
+                                        padding: const EdgeInsets.symmetric(
+                                            vertical: Km1Space.xxs),
+                                        child: Row(children: [
+                                          Expanded(
+                                              child: Text(item.productName,
+                                                  style: Km1Text.body1
+                                                      .copyWith(
+                                                          color: c.ink))),
+                                          Text('× ${item.quantity}',
+                                              style: Km1Text.body1.copyWith(
+                                                  color: c.inkSecondary)),
+                                          const SizedBox(width: Km1Space.md),
+                                          Text('¥${item.subtotal}',
+                                              style: Km1Text.body1
+                                                  .copyWith(color: c.ink)),
+                                        ]),
+                                      )),
                                   if (order.discountAmount > 0) ...[
-                                    const Divider(),
-                                    Row(children: [
-                                      const Text('小計'),
-                                      const Spacer(),
-                                      Text('¥${order.subtotal}'),
-                                    ]),
-                                    Row(children: [
-                                      const Text('割引',
-                                          style: TextStyle(color: Colors.red)),
-                                      const Spacer(),
-                                      Text('-¥${order.discountAmount}',
-                                          style: const TextStyle(
-                                              color: Colors.red)),
-                                    ]),
+                                    Divider(color: c.strokeSubtle),
+                                    amountRow('小計', '¥${order.subtotal}'),
+                                    amountRow(
+                                        '割引', '-¥${order.discountAmount}',
+                                        color: c.dangerInk),
                                   ],
-                                  const Divider(),
-                                  Row(children: [
-                                    const Text('合計',
-                                        style: TextStyle(
-                                            fontWeight: FontWeight.bold)),
-                                    const Spacer(),
-                                    Text('¥${order.totalAmount}',
-                                        style: const TextStyle(
-                                            fontWeight: FontWeight.bold)),
-                                  ]),
+                                  Divider(color: c.strokeSubtle),
+                                  amountRow('合計', '¥${order.totalAmount}',
+                                      strong: true),
                                 ],
                               ),
                             ),
@@ -205,23 +227,23 @@ class _SummaryChip extends StatelessWidget {
   const _SummaryChip({required this.label, required this.value});
 
   @override
-  Widget build(BuildContext context) => Expanded(
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 10),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: const Color(0xFFD0DCF0)),
-          ),
-          child:
-              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(label,
-                style: const TextStyle(fontSize: 10, color: Colors.grey)),
-            const SizedBox(height: 2),
-            Text(value,
-                style:
-                    const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
-          ]),
+  Widget build(BuildContext context) {
+    final c = context.km1;
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.symmetric(
+            vertical: Km1Space.sm, horizontal: Km1Space.md),
+        decoration: BoxDecoration(
+          color: c.surfaceSubtle,
+          borderRadius: BorderRadius.circular(Km1Radius.lg),
+          border: Border.all(color: c.strokeSubtle),
         ),
-      );
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(label, style: Km1Text.caption1.copyWith(color: c.inkSecondary)),
+          const SizedBox(height: Km1Space.xxs),
+          Text(value, style: Km1Text.subtitle2.copyWith(color: c.ink)),
+        ]),
+      ),
+    );
+  }
 }

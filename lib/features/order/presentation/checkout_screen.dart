@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../domain/order_provider.dart';
 import '../domain/models/order_model.dart';
+import '../../auth/domain/models/auth_state.dart';
+import '../../../core/theme/km1.dart';
 
 /// レジ精算画面
 /// ─ pending 状態の注文を受け取り、支払い方法を選んで精算完了にする
@@ -54,14 +56,14 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
   void _complete(BuildContext context, OrderModel order) async {
     if (_method == null) {
       ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('支払い方法を選択してください')));
+          .showSnackBar(const SnackBar(content: Text('支払い方法を選んでください。')));
       return;
     }
     if (_method == PaymentMethod.cash) {
       final change = _change(order.totalAmount);
       if (_received < order.totalAmount) {
         ScaffoldMessenger.of(context)
-            .showSnackBar(const SnackBar(content: Text('受取金額が合計金額を下回っています')));
+            .showSnackBar(const SnackBar(content: Text('受取金額が合計に足りません。受取金額を確認してください。')));
         return;
       }
       // お釣り確認ダイアログ
@@ -69,25 +71,23 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
         context: context,
         builder: (ctx) => AlertDialog(
           title: const Text('現金精算の確認'),
-          content: Column(mainAxisSize: MainAxisSize.min, children: [
-            _ConfirmRow(
-                label: '合計', value: '¥${order.totalAmount}', bold: true),
-            _ConfirmRow(label: '受取', value: '¥$_received'),
-            const Divider(),
-            _ConfirmRow(
-              label: 'お釣り',
-              value: '¥$change',
-              bold: true,
-              color: Colors.orange[800],
-            ),
-          ]),
+          content: SizedBox(
+            width: Km1Size.dialogWidthSm,
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              _ConfirmRow(
+                  label: '合計', value: '¥${order.totalAmount}', bold: true),
+              _ConfirmRow(label: '受取', value: '¥$_received'),
+              Divider(color: ctx.km1.strokeSubtle),
+              _ConfirmRow(label: 'お釣り', value: '¥$change', bold: true),
+            ]),
+          ),
           actions: [
-            TextButton(
+            OutlinedButton(
                 onPressed: () => Navigator.of(ctx).pop(false),
-                child: const Text('戻る')),
+                child: const Text('キャンセル')),
             FilledButton(
                 onPressed: () => Navigator.of(ctx).pop(true),
-                child: const Text('精算完了')),
+                child: const Text('精算を完了')),
           ],
         ),
       );
@@ -130,152 +130,106 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (ctx) => AlertDialog(
-        title: Text(
-          isHandoverMode ? '支払い完了' : '精算完了',
-          textAlign: TextAlign.center,
-        ),
-        content: Column(mainAxisSize: MainAxisSize.min, children: [
-          Icon(
-            isHandoverMode ? Icons.inventory_2 : Icons.check_circle,
-            color: isHandoverMode ? const Color(0xFF2563EB) : Colors.green,
-            size: 48,
-          ),
-          const SizedBox(height: 12),
-
-          // ─── 整理番号（大きく表示） ───
-          const Text('整理番号',
-              style: TextStyle(color: Colors.grey, fontSize: 12)),
-          const SizedBox(height: 2),
-          Text(
-            order.orderNumber,
-            style: TextStyle(
-              fontSize: 64,
-              fontWeight: FontWeight.bold,
-              color: isHandoverMode
-                  ? const Color(0xFF2563EB)
-                  : Theme.of(ctx).colorScheme.primary,
-              height: 1.1,
-            ),
-          ),
-
-          const SizedBox(height: 8),
-          Text('¥${order.totalAmount}',
-              style:
-                  const TextStyle(fontSize: 26, fontWeight: FontWeight.bold)),
-
-          // お釣り（現金の場合）
-          if (_method == PaymentMethod.cash && _change(order.totalAmount) > 0)
-            Padding(
-              padding: const EdgeInsets.only(top: 8),
-              child: Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                decoration: BoxDecoration(
-                  color: Colors.orange[50],
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.orange[200]!),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Text('お釣り',
-                        style: TextStyle(color: Colors.orange, fontSize: 13)),
-                    const SizedBox(width: 12),
-                    Text('¥${_change(order.totalAmount)}',
-                        style: TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.orange[800])),
+      builder: (ctx) {
+        final c = ctx.km1;
+        final change = _change(order.totalAmount);
+        return AlertDialog(
+          title: Text(isHandoverMode ? '支払いが完了しました' : '精算が完了しました'),
+          content: SizedBox(
+            width: Km1Size.dialogWidthSm,
+            child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Km1Notice(
+                    status: Km1Status.success,
+                    title: isHandoverMode ? '支払い済み・お渡し待ち' : '精算済み',
+                    body: isHandoverMode
+                        ? '商品を渡したら、注文状況の画面で「お渡し完了」を押してください。'
+                        : null,
+                  ),
+                  const SizedBox(height: Km1Space.lg),
+                  // ─── 整理番号（大きく表示） ───
+                  Text('整理番号',
+                      textAlign: TextAlign.center,
+                      style: Km1Text.body1.copyWith(color: c.inkSecondary)),
+                  Text(order.orderNumber,
+                      textAlign: TextAlign.center,
+                      style: Km1Text.display.copyWith(color: c.ink)),
+                  Text(
+                      '¥${order.totalAmount}（${_method == PaymentMethod.cash ? '現金' : 'カード'}）',
+                      textAlign: TextAlign.center,
+                      style: Km1Text.subtitle1.copyWith(color: c.ink)),
+                  // お釣り（現金の場合）
+                  if (_method == PaymentMethod.cash && change > 0) ...[
+                    const SizedBox(height: Km1Space.md),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: Km1Space.lg, vertical: Km1Space.sm),
+                      decoration: BoxDecoration(
+                        color: c.infoTint,
+                        borderRadius: BorderRadius.circular(Km1Radius.lg),
+                        border: Border.all(color: c.infoInk),
+                      ),
+                      child: Row(children: [
+                        Text('お釣り',
+                            style: Km1Text.body1Strong.copyWith(color: c.ink)),
+                        const Spacer(),
+                        Text('¥$change',
+                            style: Km1Text.title3.copyWith(color: c.ink)),
+                      ]),
+                    ),
                   ],
-                ),
-              ),
-            ),
-
-          const SizedBox(height: 6),
-          Text(
-            _method == PaymentMethod.cash ? '現金' : 'カード',
-            style: const TextStyle(color: Colors.grey, fontSize: 12),
+                ]),
           ),
-
-          // お渡しモード時のガイドテキスト
-          if (isHandoverMode) ...[
-            const SizedBox(height: 12),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              decoration: BoxDecoration(
-                color: const Color(0xFFEFF6FF),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: const Color(0xFF93C5FD)),
-              ),
-              child: const Text(
-                '注文確認画面からお渡し完了を押してください',
-                style: TextStyle(color: Color(0xFF1D4ED8), fontSize: 12),
-                textAlign: TextAlign.center,
-              ),
-            ),
-          ],
-        ]),
-        actionsAlignment: MainAxisAlignment.center,
-        actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-        actions: isHandoverMode
-            // お渡しモード：注文確認画面へ誘導
-            ? [
-                FilledButton(
-                  onPressed: () {
-                    Navigator.of(ctx).pop();
-                    context.go('/orders/status');
-                  },
-                  style: FilledButton.styleFrom(
-                    minimumSize: const Size(180, 44),
-                    backgroundColor: const Color(0xFF2563EB),
+          actions: isHandoverMode
+              // お渡しモード：注文状況の画面へ誘導
+              ? [
+                  FilledButton(
+                    onPressed: () {
+                      Navigator.of(ctx).pop();
+                      context.go('/orders/status');
+                    },
+                    child: const Text('注文状況へ'),
                   ),
-                  child: const Text('注文確認画面へ'),
-                ),
-              ]
-            // 精算のみモード：次の注文 or 注文状況
-            : [
-                OutlinedButton(
-                  onPressed: () {
-                    Navigator.of(ctx).pop();
-                    context.go('/orders/status');
-                  },
-                  style: OutlinedButton.styleFrom(
-                    minimumSize: const Size(120, 44),
+                ]
+              // 精算のみモード：次の注文 or 注文状況
+              : [
+                  OutlinedButton(
+                    onPressed: () {
+                      Navigator.of(ctx).pop();
+                      context.go('/orders/status');
+                    },
+                    child: const Text('注文状況へ'),
                   ),
-                  child: const Text('注文状況へ'),
-                ),
-                const SizedBox(width: 8),
-                FilledButton(
-                  onPressed: () {
-                    Navigator.of(ctx).pop();
-                    context.go('/orders');
-                  },
-                  style: FilledButton.styleFrom(
-                    minimumSize: const Size(120, 44),
+                  FilledButton(
+                    onPressed: () {
+                      Navigator.of(ctx).pop();
+                      context.go('/orders');
+                    },
+                    child: const Text('次の注文へ'),
                   ),
-                  child: const Text('次の注文'),
-                ),
-              ],
-      ),
+                ],
+        );
+      },
     );
   }
 
-  // ─── キャンセル ───
-  void _cancel(BuildContext context) async {
+  // ─── 注文の取り消し ───
+  void _cancel(BuildContext context, String orderNumber) async {
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('注文をキャンセルしますか？'),
-        content: const Text('この操作は取り消せません。'),
+        title: Text('整理番号 $orderNumber の注文を取り消しますか'),
+        content: const Text('取り消した注文は元に戻せません。'),
         actions: [
-          TextButton(
+          OutlinedButton(
               onPressed: () => Navigator.of(ctx).pop(false),
               child: const Text('戻る')),
-          TextButton(
+          FilledButton(
             onPressed: () => Navigator.of(ctx).pop(true),
-            style: TextButton.styleFrom(foregroundColor: Colors.red),
-            child: const Text('キャンセルする'),
+            style: km1DangerButton(ctx),
+            child: const Text('注文を取り消す'),
           ),
         ],
       ),
@@ -289,21 +243,24 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final c = context.km1;
+    final storeColor = ref.watch(authStateProvider.select((s) => s.themeColor));
+
+    Scaffold simple(Widget body) => Scaffold(
+          appBar: AppBar(
+              title: const Text('レジ精算'), bottom: storeBand(storeColor)),
+          body: body,
+        );
+
     // サーバーからの再取得が完了するまでローディングを表示
     if (_initializing) {
-      return Scaffold(
-        appBar: AppBar(title: const Text('レジ精算')),
-        body: const Center(child: CircularProgressIndicator()),
-      );
+      return simple(const Center(child: CircularProgressIndicator()));
     }
 
     // 精算確定後は loadOrders() の race condition でフォームが再表示されないようスピナーを表示
     // （5秒タイマーの in-flight loadOrders() がサーバーの pending 状態を返してもUIに影響させない）
     if (_submitted) {
-      return Scaffold(
-        appBar: AppBar(title: const Text('レジ精算')),
-        body: const Center(child: CircularProgressIndicator()),
-      );
+      return simple(const Center(child: CircularProgressIndicator()));
     }
 
     final orders = ref.watch(orderListProvider);
@@ -312,302 +269,292 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
         .firstWhere((o) => o?.id == widget.orderId, orElse: () => null);
 
     if (order == null) {
-      return Scaffold(
-        appBar: AppBar(title: const Text('レジ精算')),
-        body: Center(
-          child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-            const Icon(Icons.error_outline, size: 48, color: Colors.grey),
-            const SizedBox(height: 12),
-            const Text('注文が見つかりません'),
-            const SizedBox(height: 12),
-            TextButton(
-                onPressed: () => context.go('/orders/status'),
-                child: const Text('注文状況に戻る')),
-          ]),
-        ),
-      );
+      return simple(Km1Empty(
+        icon: Km1Icons.error,
+        title: '注文が見つかりません',
+        body: 'すでに精算されたか、取り消された可能性があります。',
+        action: OutlinedButton(
+            onPressed: () => context.go('/orders/status'),
+            child: const Text('注文状況に戻る')),
+      ));
     }
 
     // 既に完了 or キャンセル済み or お渡し待ち
     if (!order.isPending) {
-      final IconData icon;
-      final Color iconColor;
+      final Km1Status status;
       final String message;
       if (order.isCompleted) {
-        icon = Icons.check_circle;
-        iconColor = Colors.green;
+        status = Km1Status.success;
         message = 'この注文は精算済みです';
       } else if (order.isReadyForPickup) {
-        icon = Icons.inventory_2;
-        iconColor = const Color(0xFF2563EB);
-        message = '支払い済み・お渡し待ちです';
+        status = Km1Status.info;
+        message = '支払い済みで、お渡し待ちです';
       } else {
-        icon = Icons.cancel;
-        iconColor = Colors.red;
-        message = 'この注文はキャンセル済みです';
+        status = Km1Status.warning;
+        message = 'この注文は取り消されています';
       }
-      return Scaffold(
-        appBar: AppBar(title: const Text('レジ精算')),
-        body: Center(
-          child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-            Icon(icon, size: 56, color: iconColor),
-            const SizedBox(height: 12),
-            Text(message, style: const TextStyle(fontSize: 16)),
-            const SizedBox(height: 16),
-            FilledButton(
-                onPressed: () => context.go('/orders/status'),
-                child: const Text('注文状況に戻る')),
-          ]),
+      return simple(Center(
+        child: Padding(
+          padding: const EdgeInsets.all(Km1Space.lg),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: Km1Size.dialogWidthSm),
+            child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Km1Notice(status: status, title: message),
+                  const SizedBox(height: Km1Space.lg),
+                  OutlinedButton(
+                      onPressed: () => context.go('/orders/status'),
+                      child: const Text('注文状況に戻る')),
+                ]),
+          ),
         ),
-      );
+      ));
     }
+
+    const tabular = [FontFeature.tabularFigures()];
+    final change = _change(order.totalAmount);
 
     return Scaffold(
       appBar: AppBar(
-        title: Text('レジ精算  #${order.orderNumber}'),
+        title: Text('レジ精算  整理番号 ${order.orderNumber}'),
+        bottom: storeBand(storeColor),
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
+          icon: const Icon(Km1Icons.back),
+          tooltip: '戻る',
           onPressed: () => context.go('/orders/status'),
         ),
         actions: [
-          TextButton(
-            onPressed: _processing ? null : () => _cancel(context),
-            style: TextButton.styleFrom(foregroundColor: Colors.red[300]),
-            child: const Text('キャンセル'),
+          Km1BarAction(
+            icon: Km1Icons.dismissCircle,
+            label: '注文を取り消す',
+            onPressed: () {
+              if (!_processing) _cancel(context, order.orderNumber);
+            },
           ),
+          const SizedBox(width: Km1Space.xs),
         ],
       ),
-      body: Column(
-        children: [
-          // ─── 注文内容 ───
-          Expanded(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  // ─── 精算モード切替 ───
-                  SegmentedButton<bool>(
-                    segments: const [
-                      ButtonSegment(
-                        value: false,
-                        label: Text('精算のみ'),
-                        icon: Icon(Icons.check_circle_outline),
-                      ),
-                      ButtonSegment(
-                        value: true,
-                        label: Text('精算＋お渡し'),
-                        icon: Icon(Icons.inventory_2_outlined),
-                      ),
+      body: Align(
+        alignment: Alignment.topCenter,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: Km1Size.contentWidth),
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(Km1Space.lg),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // ─── 精算モード切替 ───
+                SegmentedButton<bool>(
+                  segments: const [
+                    ButtonSegment(
+                      value: false,
+                      label: Text('精算のみ'),
+                      icon: Icon(Km1Icons.checkCircle),
+                    ),
+                    ButtonSegment(
+                      value: true,
+                      label: Text('精算＋お渡し'),
+                      icon: Icon(Km1Icons.product),
+                    ),
+                  ],
+                  selected: {_withHandover},
+                  onSelectionChanged: (s) =>
+                      setState(() => _withHandover = s.first),
+                  style: const ButtonStyle(
+                    iconSize: WidgetStatePropertyAll(Km1Size.iconSm),
+                  ),
+                ),
+                const SizedBox(height: Km1Space.xs),
+                Text(
+                  _withHandover
+                      ? '支払いのあと、注文状況の画面で「お渡し完了」を押します。'
+                      : '支払いと同時に完了になります。',
+                  style: Km1Text.caption1.copyWith(color: c.inkSecondary),
+                ),
+                const SizedBox(height: Km1Space.lg),
+
+                // 商品リスト
+                Container(
+                  decoration: km1CardDecoration(context),
+                  padding: const EdgeInsets.all(Km1Space.lg),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Text('注文内容',
+                          style: Theme.of(context).textTheme.titleSmall),
+                      const SizedBox(height: Km1Space.md),
+                      ...order.items.map((item) => Padding(
+                            padding: const EdgeInsets.symmetric(
+                                vertical: Km1Space.xs),
+                            child: Row(children: [
+                              Expanded(
+                                  child: Text(item.productName,
+                                      style: Km1Text.body1
+                                          .copyWith(color: c.ink))),
+                              Text('× ${item.quantity}',
+                                  style: Km1Text.body1
+                                      .copyWith(color: c.inkSecondary)),
+                              const SizedBox(width: Km1Space.lg),
+                              Text('¥${item.subtotal}',
+                                  style: Km1Text.body1.copyWith(
+                                      color: c.ink, fontFeatures: tabular)),
+                            ]),
+                          )),
+                      if (order.discountAmount > 0) ...[
+                        Divider(height: Km1Space.lg, color: c.strokeSubtle),
+                        Row(children: [
+                          Text('小計',
+                              style: Km1Text.body1
+                                  .copyWith(color: c.inkSecondary)),
+                          const Spacer(),
+                          Text('¥${order.subtotal}',
+                              style: Km1Text.body1.copyWith(
+                                  color: c.ink, fontFeatures: tabular)),
+                        ]),
+                        Row(children: [
+                          Text('割引',
+                              style: Km1Text.body1
+                                  .copyWith(color: c.successInk)),
+                          const Spacer(),
+                          Text('-¥${order.discountAmount}',
+                              style: Km1Text.body1.copyWith(
+                                  color: c.successInk, fontFeatures: tabular)),
+                        ]),
+                      ],
+                      Divider(height: Km1Space.lg, color: c.strokeSubtle),
+                      Row(children: [
+                        Text('合計',
+                            style: Km1Text.subtitle2.copyWith(color: c.ink)),
+                        const Spacer(),
+                        Text('¥${order.totalAmount}',
+                            style: Km1Text.title3.copyWith(
+                                color: c.ink, fontFeatures: tabular)),
+                      ]),
                     ],
-                    selected: {_withHandover},
-                    onSelectionChanged: (s) =>
-                        setState(() => _withHandover = s.first),
-                    style: const ButtonStyle(
-                      iconSize: WidgetStatePropertyAll(16),
+                  ),
+                ),
+
+                const SizedBox(height: Km1Space.xxl),
+
+                // ─── 支払い方法 ───
+                Text('支払い方法', style: Theme.of(context).textTheme.titleSmall),
+                const SizedBox(height: Km1Space.sm),
+                Row(children: [
+                  Expanded(
+                    child: _PaymentMethodCard(
+                      icon: Km1Icons.cash,
+                      label: '現金',
+                      selected: _method == PaymentMethod.cash,
+                      onTap: () => setState(() {
+                        _method = PaymentMethod.cash;
+                      }),
                     ),
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    _withHandover ? '支払い後に注文確認画面でお渡し完了を押します' : '支払いと同時に完了になります',
-                    style: TextStyle(
-                        fontSize: 11,
-                        color: _withHandover
-                            ? const Color(0xFF2563EB)
-                            : Colors.grey),
-                    textAlign: TextAlign.center,
+                  const SizedBox(width: Km1Space.sm),
+                  Expanded(
+                    child: _PaymentMethodCard(
+                      icon: Km1Icons.card,
+                      label: 'カード',
+                      selected: _method == PaymentMethod.card,
+                      onTap: () => setState(() {
+                        _method = PaymentMethod.card;
+                        _receivedCtrl.clear();
+                      }),
+                    ),
                   ),
-                  const SizedBox(height: 12),
+                ]),
 
-                  // 商品リスト
-                  Card(
-                    child: Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                // ─── 現金入力 ───
+                if (_method == PaymentMethod.cash) ...[
+                  const SizedBox(height: Km1Space.xxl),
+                  Km1Field(
+                    label: '受取金額（円）',
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        TextField(
+                          controller: _receivedCtrl,
+                          keyboardType: TextInputType.number,
+                          textAlign: TextAlign.end,
+                          onChanged: (_) => setState(() {}),
+                          decoration: const InputDecoration(prefixText: '¥ '),
+                        ),
+                        const SizedBox(height: Km1Space.sm),
+                        // クイック金額ボタン
+                        _QuickAmountRow(
+                          total: order.totalAmount,
+                          onSelect: (v) => setState(() {
+                            _receivedCtrl.text = v.toString();
+                          }),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  // リアルタイムお釣り表示（色だけでなく「お釣り」「不足」の文言とアイコンで示す）
+                  if (_received > 0) ...[
+                    const SizedBox(height: Km1Space.md),
+                    Container(
+                      padding: const EdgeInsets.all(Km1Space.lg),
+                      decoration: BoxDecoration(
+                        color: change >= 0 ? c.infoTint : c.dangerTint,
+                        borderRadius: BorderRadius.circular(Km1Radius.lg),
+                        border: Border.all(
+                            color: change >= 0 ? c.infoInk : c.dangerInk),
+                      ),
+                      child: Row(
                         children: [
-                          const Text('注文内容',
-                              style: TextStyle(
-                                  fontWeight: FontWeight.bold, fontSize: 14)),
-                          const SizedBox(height: 12),
-                          ...order.items.map((item) => Padding(
-                                padding:
-                                    const EdgeInsets.symmetric(vertical: 4),
-                                child: Row(children: [
-                                  Expanded(child: Text(item.productName)),
-                                  Text('× ${item.quantity}',
-                                      style:
-                                          const TextStyle(color: Colors.grey)),
-                                  const SizedBox(width: 16),
-                                  Text('¥${item.subtotal}',
-                                      style: const TextStyle(
-                                          fontWeight: FontWeight.w500)),
-                                ]),
-                              )),
-                          if (order.discountAmount > 0) ...[
-                            const Divider(height: 16),
-                            Row(children: [
-                              const Text('小計'),
-                              const Spacer(),
-                              Text('¥${order.subtotal}'),
-                            ]),
-                            Row(children: [
-                              const Text('割引',
-                                  style: TextStyle(color: Colors.red)),
-                              const Spacer(),
-                              Text('-¥${order.discountAmount}',
-                                  style: const TextStyle(color: Colors.red)),
-                            ]),
-                          ],
-                          const Divider(height: 16),
-                          Row(children: [
-                            const Text('合計',
-                                style: TextStyle(
-                                    fontWeight: FontWeight.bold, fontSize: 16)),
-                            const Spacer(),
-                            Text('¥${order.totalAmount}',
-                                style: const TextStyle(
-                                    fontWeight: FontWeight.bold, fontSize: 22)),
-                          ]),
+                          Icon(change >= 0 ? Km1Icons.cash : Km1Icons.error,
+                              color: change >= 0 ? c.infoInk : c.dangerInk),
+                          const SizedBox(width: Km1Space.sm),
+                          Text(change >= 0 ? 'お釣り' : '不足',
+                              style: Km1Text.body1Strong
+                                  .copyWith(color: c.ink)),
+                          const Spacer(),
+                          Text('¥${change.abs()}',
+                              style: Km1Text.title3.copyWith(
+                                  color: c.ink, fontFeatures: tabular)),
                         ],
                       ),
                     ),
-                  ),
-
-                  const SizedBox(height: 16),
-
-                  // ─── 支払い方法 ───
-                  const Text('支払い方法',
-                      style:
-                          TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-                  const SizedBox(height: 10),
-                  Row(children: [
-                    Expanded(
-                      child: _PaymentMethodCard(
-                        icon: Icons.payments_outlined,
-                        label: '現金',
-                        selected: _method == PaymentMethod.cash,
-                        onTap: () => setState(() {
-                          _method = PaymentMethod.cash;
-                        }),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: _PaymentMethodCard(
-                        icon: Icons.credit_card,
-                        label: 'カード',
-                        selected: _method == PaymentMethod.card,
-                        onTap: () => setState(() {
-                          _method = PaymentMethod.card;
-                          _receivedCtrl.clear();
-                        }),
-                      ),
-                    ),
-                  ]),
-
-                  // ─── 現金入力 ───
-                  if (_method == PaymentMethod.cash) ...[
-                    const SizedBox(height: 16),
-                    const Text('受取金額',
-                        style: TextStyle(
-                            fontWeight: FontWeight.bold, fontSize: 14)),
-                    const SizedBox(height: 10),
-
-                    // クイック金額ボタン
-                    _QuickAmountRow(
-                      total: order.totalAmount,
-                      onSelect: (v) => setState(() {
-                        _receivedCtrl.text = v.toString();
-                      }),
-                    ),
-                    const SizedBox(height: 10),
-                    TextField(
-                      controller: _receivedCtrl,
-                      keyboardType: TextInputType.number,
-                      onChanged: (_) => setState(() {}),
-                      decoration: const InputDecoration(
-                        labelText: '受取金額（円）',
-                        prefixText: '¥',
-                        border: OutlineInputBorder(),
-                      ),
-                    ),
-
-                    // リアルタイムお釣り表示
-                    if (_received > 0) ...[
-                      const SizedBox(height: 12),
-                      Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: _change(order.totalAmount) >= 0
-                              ? Colors.orange[50]
-                              : Colors.red[50],
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                            color: _change(order.totalAmount) >= 0
-                                ? Colors.orange
-                                : Colors.red,
-                          ),
-                        ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text(
-                              _change(order.totalAmount) >= 0 ? 'お釣り' : '不足',
-                              style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                color: _change(order.totalAmount) >= 0
-                                    ? Colors.orange[800]
-                                    : Colors.red,
-                              ),
-                            ),
-                            Text(
-                              '¥${_change(order.totalAmount).abs()}',
-                              style: TextStyle(
-                                fontSize: 24,
-                                fontWeight: FontWeight.bold,
-                                color: _change(order.totalAmount) >= 0
-                                    ? Colors.orange[800]
-                                    : Colors.red,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
                   ],
-
-                  const SizedBox(height: 80), // FABのスペース
                 ],
-              ),
+              ],
             ),
           ),
-        ],
+        ),
       ),
 
       // ─── 精算ボタン ───
-      bottomNavigationBar: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-          child: FilledButton.icon(
-            onPressed: (_method == null || _processing)
-                ? null
-                : () => _complete(context, order),
-            icon: _processing
-                ? const SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(
-                        strokeWidth: 2, color: Colors.white))
-                : const Icon(Icons.check_circle_outline),
-            label: Text(
-              _withHandover
-                  ? (_method == PaymentMethod.card ? 'カードで支払い完了' : '現金で支払い完了')
-                  : (_method == PaymentMethod.card ? 'カードで精算完了' : '現金で精算完了'),
-              style: const TextStyle(fontSize: 16),
-            ),
-            style: FilledButton.styleFrom(
-              minimumSize: const Size.fromHeight(52),
+      bottomNavigationBar: Container(
+        decoration: BoxDecoration(
+          color: c.surface,
+          border: Border(top: BorderSide(color: c.strokeSubtle)),
+        ),
+        child: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(Km1Space.lg),
+            child: FilledButton(
+              onPressed: (_method == null || _processing)
+                  ? null
+                  : () => _complete(context, order),
+              style: const ButtonStyle(
+                minimumSize: WidgetStatePropertyAll(
+                    Size.fromHeight(Km1Size.controlLgTouch)),
+              ),
+              child: Text(
+                _method == null
+                    ? '支払い方法を選んでください'
+                    : _withHandover
+                        ? (_method == PaymentMethod.card
+                            ? 'カードで支払いを完了'
+                            : '現金で支払いを完了')
+                        : (_method == PaymentMethod.card
+                            ? 'カードで精算を完了'
+                            : '現金で精算を完了'),
+              ),
             ),
           ),
         ),
@@ -621,32 +568,29 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
 class _ConfirmRow extends StatelessWidget {
   final String label, value;
   final bool bold;
-  final Color? color;
   const _ConfirmRow({
     required this.label,
     required this.value,
     this.bold = false,
-    this.color,
   });
 
   @override
-  Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.symmetric(vertical: 4),
-        child: Row(children: [
-          Text(label,
-              style: TextStyle(
-                  fontWeight: bold ? FontWeight.bold : FontWeight.normal,
-                  color: color)),
-          const Spacer(),
-          Text(value,
-              style: TextStyle(
-                  fontWeight: bold ? FontWeight.bold : FontWeight.normal,
-                  fontSize: bold ? 16 : 14,
-                  color: color)),
-        ]),
-      );
+  Widget build(BuildContext context) {
+    final c = context.km1;
+    final style = (bold ? Km1Text.subtitle2 : Km1Text.body1).copyWith(
+        color: c.ink, fontFeatures: const [FontFeature.tabularFigures()]);
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: Km1Space.xs),
+      child: Row(children: [
+        Text(label, style: style),
+        const Spacer(),
+        Text(value, style: style),
+      ]),
+    );
+  }
 }
 
+/// 支払い方法の選択肢（選択中は brandStroke の縁 + 塗りのチェックで示す）
 class _PaymentMethodCard extends StatelessWidget {
   final IconData icon;
   final String label;
@@ -661,30 +605,43 @@ class _PaymentMethodCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = Theme.of(context).colorScheme.primary;
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 150),
-        padding: const EdgeInsets.symmetric(vertical: 20),
-        decoration: BoxDecoration(
-          color: selected ? color.withValues(alpha: 0.1) : Colors.grey[100],
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: selected ? color : Colors.grey[300]!,
-            width: selected ? 2 : 1,
+    final c = context.km1;
+    return Semantics(
+      selected: selected,
+      button: true,
+      child: Material(
+        color: selected ? c.brandTint : c.surface,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(Km1Radius.lg),
+          side: BorderSide(
+            color: selected ? c.brandStroke : c.strokeStrong,
+            width: selected ? Km1Size.strokeThick : Km1Size.strokeThin,
           ),
         ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 32, color: selected ? color : Colors.grey[500]),
-            const SizedBox(height: 8),
-            Text(label,
-                style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    color: selected ? color : Colors.grey[600])),
-          ],
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          hoverColor: c.surfaceHover,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: Km1Space.lg),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(icon,
+                    size: Km1Size.iconLg,
+                    color: selected ? c.brandInk : c.inkSecondary),
+                const SizedBox(width: Km1Space.sm),
+                Text(label,
+                    style: (selected ? Km1Text.subtitle2 : Km1Text.body2)
+                        .copyWith(color: c.ink)),
+                if (selected) ...[
+                  const SizedBox(width: Km1Space.sm),
+                  Icon(Km1Icons.checkCircleFilled,
+                      size: Km1Size.iconMd, color: c.brandInk),
+                ],
+              ],
+            ),
+          ),
         ),
       ),
     );
@@ -715,21 +672,12 @@ class _QuickAmountRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Wrap(
-      spacing: 8,
-      runSpacing: 6,
+      spacing: Km1Space.sm,
+      runSpacing: Km1Space.sm,
       children: _amounts
           .map((amt) => OutlinedButton(
                 onPressed: () => onSelect(amt),
-                style: OutlinedButton.styleFrom(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                  minimumSize: Size.zero,
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                ),
-                child: Text(
-                  amt == total ? 'ちょうど ¥$amt' : '¥$amt',
-                  style: const TextStyle(fontSize: 13),
-                ),
+                child: Text(amt == total ? 'ちょうど ¥$amt' : '¥$amt'),
               ))
           .toList(),
     );

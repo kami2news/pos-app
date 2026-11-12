@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:dio/dio.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/network/api_service.dart';
+import '../../../core/theme/km1.dart';
 
 // ─── カラーパレット定義 ───────────────────────────────────
 class _ColorEntry {
@@ -11,19 +12,21 @@ class _ColorEntry {
   const _ColorEntry(this.label, this.value);
 }
 
+// 店舗の色は KM1 の分類色（cat-*）から選ぶ。帯と淡い塗りにだけ使う。
+// 隣り合う色は明るさが違う組にし、青と橙を先頭に置く（EPSON のカラーユニバーサルデザイン）。
 const _kPalette = [
-  _ColorEntry('ネイビー', 0xFF1456A0),
-  _ColorEntry('ロイヤルブルー', 0xFF1565C0),
-  _ColorEntry('インディゴ', 0xFF283593),
-  _ColorEntry('ティール', 0xFF00695C),
-  _ColorEntry('グリーン', 0xFF2E7D32),
-  _ColorEntry('パープル', 0xFF4527A0),
-  _ColorEntry('ディープパープル', 0xFF6A1B9A),
-  _ColorEntry('レッド', 0xFFC62828),
-  _ColorEntry('ピンク', 0xFFAD1457),
-  _ColorEntry('オレンジ', 0xFFE65100),
-  _ColorEntry('ブラウン', 0xFF4E342E),
-  _ColorEntry('チャコール', 0xFF37474F),
+  _ColorEntry('ブルー', 0xFF0F6CBD),
+  _ColorEntry('パンプキン', 0xFFF7630C),
+  _ColorEntry('ティール', 0xFF038387),
+  _ColorEntry('ベリー', 0xFFC239B3),
+  _ColorEntry('グリーン', 0xFF13A10E),
+  _ColorEntry('コーンフラワー', 0xFF4F6BED),
+  _ColorEntry('マリーゴールド', 0xFFEAA300),
+  _ColorEntry('パープル', 0xFF8764B8),
+  _ColorEntry('シアン', 0xFF0099BC),
+  _ColorEntry('レッド', 0xFFD13438),
+  _ColorEntry('ブラウン', 0xFF8E562E),
+  _ColorEntry('グレー', 0xFF7A7574),
 ];
 
 // ─── 画面本体 ─────────────────────────────────────────────
@@ -40,7 +43,7 @@ class _StoreRegisterScreenState extends ConsumerState<StoreRegisterScreen> {
   final _pwCtrl = TextEditingController();
   final _pw2Ctrl = TextEditingController();
   bool _loading = false;
-  int _selected = 0xFF1456A0; // デフォルト：ネイビー
+  int _selected = 0xFF0F6CBD; // 既定：ブルー
 
   @override
   void dispose() {
@@ -59,12 +62,12 @@ class _StoreRegisterScreenState extends ConsumerState<StoreRegisterScreen> {
 
     if (name.isEmpty || code.isEmpty || pw.isEmpty) {
       ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('全ての項目を入力してください')));
+          .showSnackBar(const SnackBar(content: Text('すべての項目を入力してください。')));
       return;
     }
     if (pw != pw2) {
       ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('パスワードが一致しません')));
+          .showSnackBar(const SnackBar(content: Text('パスワードが一致しません。確認用にも同じパスワードを入力してください。')));
       return;
     }
 
@@ -78,12 +81,12 @@ class _StoreRegisterScreenState extends ConsumerState<StoreRegisterScreen> {
       // 登録成功 → ログイン画面へ
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('登録が完了しました。ログインしてください')),
+          const SnackBar(content: Text('店舗を登録しました。ログインしてください。')),
         );
         context.go('/login');
       }
     } on DioException catch (e) {
-      final msg = e.response?.data?['error'] ?? '登録に失敗しました';
+      final msg = e.response?.data?['error'] ?? '登録できませんでした。もう一度お試しください。';
       if (mounted) {
         ScaffoldMessenger.of(context)
             .showSnackBar(SnackBar(content: Text(msg.toString())));
@@ -91,7 +94,7 @@ class _StoreRegisterScreenState extends ConsumerState<StoreRegisterScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('エラー: $e')));
+            .showSnackBar(SnackBar(content: Text('登録できませんでした。もう一度お試しください（$e）')));
       }
     } finally {
       if (mounted) setState(() => _loading = false);
@@ -100,218 +103,113 @@ class _StoreRegisterScreenState extends ConsumerState<StoreRegisterScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final accentColor = Color(_selected);
+    final c = context.km1;
+    final selectedEntry = _kPalette.firstWhere((e) => e.value == _selected,
+        orElse: () => _kPalette.first);
+
+    Widget section(String title, List<Widget> children) => Container(
+          decoration: km1CardDecoration(context),
+          padding: const EdgeInsets.all(Km1Space.lg),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(title, style: Theme.of(context).textTheme.titleSmall),
+              const SizedBox(height: Km1Space.lg),
+              ...children,
+            ],
+          ),
+        );
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F5F5),
       appBar: AppBar(
-        title: const Text('店舗を新規登録'),
+        title: const Text('店舗の登録'),
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
+          icon: const Icon(Km1Icons.back),
+          tooltip: '戻る',
           onPressed: () => context.go('/login'),
         ),
+        bottom: storeBand(_selected),
       ),
       body: Center(
         child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 480),
+          constraints: const BoxConstraints(maxWidth: Km1Size.dialogWidth),
           child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+            padding: const EdgeInsets.all(Km1Space.lg),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // ── プレビューバー ──
-                _AppBarPreview(color: accentColor),
-                const SizedBox(height: 20),
-
-                // ── 店舗情報フォーム ──
-                Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(24),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        const Text('店舗情報',
-                            style: TextStyle(
-                                fontWeight: FontWeight.bold, fontSize: 15)),
-                        const SizedBox(height: 16),
-                        TextField(
-                          controller: _nameCtrl,
-                          decoration: const InputDecoration(
-                            labelText: '店舗名',
-                            border: OutlineInputBorder(),
-                            prefixIcon: Icon(Icons.store_outlined),
-                          ),
-                        ),
-                        const SizedBox(height: 14),
-                        TextField(
-                          controller: _codeCtrl,
-                          decoration: const InputDecoration(
-                            labelText: '店舗コード（ログインID）',
-                            border: OutlineInputBorder(),
-                            prefixIcon: Icon(Icons.badge_outlined),
-                          ),
-                        ),
-                        const SizedBox(height: 14),
-                        TextField(
-                          controller: _pwCtrl,
-                          obscureText: true,
-                          decoration: const InputDecoration(
-                            labelText: 'パスワード',
-                            border: OutlineInputBorder(),
-                            prefixIcon: Icon(Icons.lock_outline),
-                          ),
-                        ),
-                        const SizedBox(height: 14),
-                        TextField(
-                          controller: _pw2Ctrl,
-                          obscureText: true,
-                          decoration: const InputDecoration(
-                            labelText: 'パスワード（確認）',
-                            border: OutlineInputBorder(),
-                            prefixIcon: Icon(Icons.lock_outline),
-                          ),
-                        ),
-                      ],
+                section('店舗情報', [
+                  Km1Field(
+                    label: '店舗名',
+                    child: TextField(
+                      controller: _nameCtrl,
+                      decoration: const InputDecoration(
+                          prefixIcon: Icon(Km1Icons.store)),
                     ),
                   ),
-                ),
-
-                const SizedBox(height: 16),
-
-                // ── テーマカラー選択 ──
-                Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(24),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(children: [
-                          const Text('テーマカラー',
-                              style: TextStyle(
-                                  fontWeight: FontWeight.bold, fontSize: 15)),
-                          const SizedBox(width: 10),
-                          // 選択中の色名を表示
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 10, vertical: 3),
-                            decoration: BoxDecoration(
-                              color: accentColor.withValues(alpha: 0.12),
-                              borderRadius: BorderRadius.circular(99),
-                            ),
-                            child: Text(
-                              _kPalette
-                                  .firstWhere((c) => c.value == _selected)
-                                  .label,
-                              style: TextStyle(
-                                  fontSize: 12,
-                                  color: accentColor,
-                                  fontWeight: FontWeight.w600),
-                            ),
-                          ),
-                        ]),
-                        const SizedBox(height: 4),
-                        const Text('アプリ全体のカラーテーマを選択',
-                            style: TextStyle(fontSize: 12, color: Colors.grey)),
-                        const SizedBox(height: 18),
-
-                        // カラーグリッド（4列）
-                        GridView.builder(
-                          shrinkWrap: true,
-                          physics: const NeverScrollableScrollPhysics(),
-                          gridDelegate:
-                              const SliverGridDelegateWithFixedCrossAxisCount(
-                            crossAxisCount: 4,
-                            mainAxisSpacing: 14,
-                            crossAxisSpacing: 8,
-                            childAspectRatio: 0.78,
-                          ),
-                          itemCount: _kPalette.length,
-                          itemBuilder: (_, i) {
-                            final c = _kPalette[i];
-                            final isSelected = _selected == c.value;
-                            return GestureDetector(
-                              onTap: () => setState(() => _selected = c.value),
-                              child: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  AnimatedContainer(
-                                    duration: const Duration(milliseconds: 180),
-                                    curve: Curves.easeOut,
-                                    width: isSelected ? 56 : 50,
-                                    height: isSelected ? 56 : 50,
-                                    decoration: BoxDecoration(
-                                      color: Color(c.value),
-                                      shape: BoxShape.circle,
-                                      boxShadow: isSelected
-                                          ? [
-                                              BoxShadow(
-                                                color: Color(c.value)
-                                                    .withValues(alpha: 0.55),
-                                                blurRadius: 10,
-                                                spreadRadius: 2,
-                                              ),
-                                            ]
-                                          : null,
-                                    ),
-                                    child: isSelected
-                                        ? const Icon(Icons.check,
-                                            color: Colors.white, size: 28)
-                                        : null,
-                                  ),
-                                  const SizedBox(height: 6),
-                                  Text(
-                                    c.label,
-                                    style: TextStyle(
-                                      fontSize: 10,
-                                      color: isSelected
-                                          ? Color(c.value)
-                                          : Colors.grey[600],
-                                      fontWeight: isSelected
-                                          ? FontWeight.w700
-                                          : FontWeight.normal,
-                                    ),
-                                    textAlign: TextAlign.center,
-                                    overflow: TextOverflow.ellipsis,
-                                    maxLines: 1,
-                                  ),
-                                ],
-                              ),
-                            );
-                          },
-                        ),
-                      ],
+                  const SizedBox(height: Km1Space.lg),
+                  Km1Field(
+                    label: '店舗コード（ログイン ID）',
+                    child: TextField(
+                      controller: _codeCtrl,
+                      decoration: const InputDecoration(
+                          prefixIcon: Icon(Km1Icons.person)),
                     ),
                   ),
-                ),
-
-                const SizedBox(height: 24),
-
-                // ── 登録ボタン ──
-                FilledButton.icon(
-                  style: FilledButton.styleFrom(
-                    backgroundColor: accentColor,
-                    foregroundColor: Colors.white,
+                  const SizedBox(height: Km1Space.lg),
+                  Km1Field(
+                    label: 'パスワード',
+                    child: TextField(
+                      controller: _pwCtrl,
+                      obscureText: true,
+                      decoration: const InputDecoration(
+                          prefixIcon: Icon(Km1Icons.lock)),
+                    ),
                   ),
+                  const SizedBox(height: Km1Space.lg),
+                  Km1Field(
+                    label: 'パスワード（確認）',
+                    child: TextField(
+                      controller: _pw2Ctrl,
+                      obscureText: true,
+                      decoration: const InputDecoration(
+                          prefixIcon: Icon(Km1Icons.lock)),
+                    ),
+                  ),
+                ]),
+                const SizedBox(height: Km1Space.lg),
+                section('店舗の色', [
+                  Text(
+                    '店舗を見分けるための色です。画面上部のバーの下に帯として表示されます。',
+                    style: Km1Text.body1.copyWith(color: c.inkSecondary),
+                  ),
+                  const SizedBox(height: Km1Space.lg),
+                  Wrap(
+                    spacing: Km1Space.sm,
+                    runSpacing: Km1Space.sm,
+                    children: [
+                      for (final e in _kPalette)
+                        _ColorOption(
+                          entry: e,
+                          selected: _selected == e.value,
+                          onTap: () => setState(() => _selected = e.value),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: Km1Space.md),
+                  Text('選択中：${selectedEntry.label}',
+                      style: Km1Text.body1Strong.copyWith(color: c.ink)),
+                ]),
+                const SizedBox(height: Km1Space.xxl),
+                FilledButton(
                   onPressed: _loading ? null : _register,
-                  icon: const Icon(Icons.store_outlined),
-                  label: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 13),
-                    child: _loading
-                        ? const SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: CircularProgressIndicator(
-                                strokeWidth: 2, color: Colors.white))
-                        : const Text('登録する', style: TextStyle(fontSize: 16)),
-                  ),
+                  child: Text(_loading ? '登録中' : '登録'),
                 ),
-
-                const SizedBox(height: 12),
+                const SizedBox(height: Km1Space.sm),
                 TextButton(
                   onPressed: () => context.go('/login'),
                   child: const Text('ログイン画面に戻る'),
                 ),
-                const SizedBox(height: 8),
               ],
             ),
           ),
@@ -321,53 +219,59 @@ class _StoreRegisterScreenState extends ConsumerState<StoreRegisterScreen> {
   }
 }
 
-// ─── アプリバープレビュー ──────────────────────────────────
-class _AppBarPreview extends StatelessWidget {
-  final Color color;
-  const _AppBarPreview({required this.color});
+// ─── 色の選択肢（見本の帯 + 色名。選択中はチェックと縁で示す） ───
+class _ColorOption extends StatelessWidget {
+  final _ColorEntry entry;
+  final bool selected;
+  final VoidCallback onTap;
+  const _ColorOption(
+      {required this.entry, required this.selected, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(12),
-      child: Column(
-        children: [
-          // AppBar 風プレビュー
-          AnimatedContainer(
-            duration: const Duration(milliseconds: 250),
-            curve: Curves.easeOut,
-            height: 52,
-            color: color,
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: const Row(
-              children: [
-                Icon(Icons.arrow_back, color: Colors.white, size: 20),
-                SizedBox(width: 14),
-                Expanded(
-                  child: Text('店舗名',
-                      style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 16,
-                          fontWeight: FontWeight.w500)),
+    final c = context.km1;
+    final b = Theme.of(context).brightness;
+    final color = Color(entry.value);
+    return Semantics(
+      selected: selected,
+      button: true,
+      label: entry.label,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(Km1Radius.md),
+        child: Container(
+          width: 128,
+          constraints: BoxConstraints(minHeight: context.km1Target),
+          decoration: BoxDecoration(
+            color: Km1Category.tint(color, b),
+            borderRadius: BorderRadius.circular(Km1Radius.md),
+            border: Border.all(
+              color: selected ? c.brandStroke : c.stroke,
+              width: selected ? Km1Size.strokeThick : Km1Size.strokeThin,
+            ),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: Km1Size.strokeAccent,
+                height: context.km1Target - 4,
+                color: color,
+              ),
+              const SizedBox(width: Km1Space.sm),
+              Expanded(
+                child: Text(entry.label,
+                    style: (selected ? Km1Text.body1Strong : Km1Text.body1)
+                        .copyWith(color: c.ink),
+                    overflow: TextOverflow.ellipsis),
+              ),
+              if (selected)
+                Padding(
+                  padding: const EdgeInsets.only(right: Km1Space.sm),
+                  child: Icon(Km1Icons.check, size: Km1Size.iconSm, color: c.ink),
                 ),
-                Icon(Icons.receipt_long, color: Colors.white, size: 20),
-                SizedBox(width: 14),
-                Icon(Icons.inventory_2_outlined, color: Colors.white, size: 20),
-                SizedBox(width: 14),
-                Icon(Icons.local_offer_outlined, color: Colors.white, size: 20),
-              ],
-            ),
+            ],
           ),
-          // ボディヒント
-          Container(
-            height: 32,
-            color: Colors.grey[100],
-            child: Center(
-              child: Text('カラープレビュー',
-                  style: TextStyle(fontSize: 11, color: Colors.grey[400])),
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }
